@@ -1,6 +1,6 @@
 # StreamTest - Video Testing Tool
 
-A Chrome extension for testing and monitoring WebRTC video streams in real-time. This tool provides detailed analytics about video stream quality, including FPS, bitrate, packet loss, delays, and more.
+A Chrome extension for testing and monitoring WebRTC video streams in real-time developed by Fora Soft. This tool provides detailed analytics about video stream quality, including FPS, bitrate, packet loss, delays, and more.
 
 ## Features
 
