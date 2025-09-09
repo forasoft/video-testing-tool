@@ -1,0 +1,132 @@
+.bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  left: 0;
+
+  height: 100%;
+  width: 100%;
+
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.layout {
+  display: flex;
+  flex-flow: column;
+
+  width: 100%;
+  height: 100%;
+
+  border-radius: 10px;
+
+  overflow: hidden;
+}
+
+.footer {
+  width: 100%;
+  box-sizing: border-box;
+
+  border-top: 1px solid rgba(0.61, 0.61, 0.61, 0.1);
+  height: 45px;
+  display: flex;
+  padding: 0 15px;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+}
+
+.footer > * {
+  display: flex;
+  align-items: center;
+}
+
+.footerBtn {
+  height: 20px;
+  border: none;
+  background: none;
+  outline: none !important;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.footerBtn:hover .footerText {
+  color: var(--black) !important;
+  transition: color 0.2s ease-in-out;
+}
+
+.footerBtn:hover path {
+  stroke: var(--black);
+  transition: stroke 0.2s ease-in-out;
+}
+
+.mainFooter {
+  padding-top: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-self: end;
+  justify-content: center;
+  align-items: center;
+  margin-top: 28px;
+  border-top: 1px solid rgba(0.61, 0.61, 0.61, 0.1);
+}
+
+.footer .footerText {
+  display: flex;
+  align-items: center;
+  margin-left: 11px;
+  color: var(--gray);
+  font-size: 16px;
+}
+.footer .footerText:hover {
+  color: #a3a5a8;
+  transition: 0.3s ease;
+}
+.footer .footerText:first-child {
+  margin-left: 0;
+  margin-right: 6px;
+}
+
+.credo {
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--gray);
+}
+.linkIcon {
+  cursor: pointer;
+  margin-left: 8px;
+  margin-right: 8px;
+  filter: grayscale(1);
+  opacity: 0.75;
+  transition: 0.2s ease-in;
+}
+.ForaSoftLogo {
+  cursor: pointer;
+  margin-left: 8px;
+  margin-right: 8px;
+}
+.linkIcon:hover {
+  filter: grayscale(0);
+  opacity: 1;
+}
+.firstRow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.footerIcon {
+  color: var(--gray)
+}
+.footerIcon:hover {
+  cursor: pointer;
+  color: var(--blue)
+}
+.footerBtnInactive{
+  border: none;
+  background: none;
+  outline: none !important;
+  margin: 0;
+  padding: 0;
+  cursor: arrow;
+}

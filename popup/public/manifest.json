@@ -1,0 +1,37 @@
+{
+  "name": "StreamTest",
+  "version": "1.0.0",
+  "manifest_version": 3,
+  "background": {
+    "service_worker": "background.js"
+  },
+  "description": "Test live video streams",
+  "icons": {
+      "512": "logo512.png"
+  },
+  "web_accessible_resources": [{
+    "resources": ["index.html", "injection.js"],
+    "matches": [
+      "https://*/*"
+    ]
+  }],
+  "content_scripts": [
+    {
+      "matches": ["https://*/*", "http://*/"],
+      "js": ["main.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "permissions": [
+    "contextMenus",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://*/",
+    "https://*/*"
+  ],
+  "action": {
+      "default_icon": "logo512.png"
+  }
+}

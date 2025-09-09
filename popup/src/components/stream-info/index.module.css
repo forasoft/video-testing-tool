@@ -1,0 +1,186 @@
+.wrapper {
+  margin: 0 15px;
+  flex: 1;
+  font-style: normal;
+  font-weight: normal;
+  font-size: 16px;
+  max-height: 48px;
+  box-sizing: border-box;
+}
+.wrapper + .wrapper {
+  margin-top: 10px;
+}
+
+.stat {
+  height: 48px;
+  background: var(--white);
+  border-radius: 10px;
+  color: var(--black);
+  font-size: 16px;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stat .leftSide {
+  width: 60%;
+  margin-left: 20px;
+  display: flex;
+  align-items: center;
+}
+
+.stat .leftSide .text {
+  margin-left: 12px;
+  line-height: 24px;
+  white-space: nowrap;
+}
+
+.hintIcon {
+  top: -9px;
+  margin-left: 3px;
+  cursor: pointer;
+}
+
+.hintTextContainer {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 300;
+  width: 150px;
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--white);
+  box-shadow: 0px 10px 60px rgba(0, 0, 0, 0.1);
+  opacity: 1;
+  transition: opacity 0.3s ease-in;
+  font-size: 12px;
+}
+
+.hintTextContainerHidden {
+  padding: 10px;
+  width: 150px;
+  font-size: 12px;
+  opacity: 0;
+  transition: 0.5s ease-out;
+  pointer-events: none;
+}
+
+.errorTextContainer {
+  font-weight: 400;
+  color: var(--black);
+  text-align: start;
+  font-size: 12px;
+  top: 20px;
+  right: -10px;
+  position: absolute;
+  z-index: 300;
+  background: var(--white);
+  box-shadow: 0px 10px 60px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  opacity: 1;
+  transition: opacity 0.3s ease-in;
+  padding: 10px;
+  width: 150px;
+}
+
+.errorTextContainerHidden {
+  font-weight: 400;
+  color: var(--black);
+  text-align: start;
+  position: absolute;
+  top: 20px;
+  right: -10px;
+  padding: 10px;
+  width: 150px;
+  font-size: 12px;
+  opacity: 0;
+  transition: 0.5s ease-out;
+  pointer-events: none;
+}
+
+.stat .rightSide {
+  display: flex;
+  justify-content: flex-end;
+  font-weight: 600;
+  margin-right: 20px;
+  width: 100px;
+  text-align: end;
+}
+
+.stat .rightSide.good {
+  color: var(--green);
+  transition: color 1s ease-in;
+}
+
+.stat .rightSide.moderate {
+  color: var(--yellow);
+  transition: color 1s ease-in;
+}
+
+.stat .rightSide.bad {
+  color: var(--red);
+  transition: color 1s ease-in;
+}
+
+.iconWrapper {
+  position: relative;
+  margin-left: 10px;
+  width: 18px;
+  height: 18px;
+}
+
+.codecsWrapper {
+  margin: 15px;
+  margin-bottom: 0;
+}
+
+.codec {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  line-height: 24px;
+  font-size: 16px;
+}
+
+.codec .text {
+  margin-left: 12px;
+  white-space: nowrap;
+}
+
+.codec .secondaryText {
+  color: var(--gray);
+  font-size: 16px;
+}
+
+.codec .errorTextContainer {
+  left: -5px;
+  line-height: 1.1;
+}
+
+.codec .errorTextContainerHidden {
+  left: -5px;
+  line-height: 1.1;
+}
+
+.wrapperDisconnectScreen {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.disconnectTitle {
+  margin-top: 22px;
+  color: var(--black);
+}
+
+.disconnectText {
+  margin-top: 4px;
+  color: var(--gray);
+}

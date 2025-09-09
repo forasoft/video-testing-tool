@@ -1,0 +1,40 @@
+.mainScreenContent {
+  font-style: normal;
+  font-weight: normal;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--black);
+  box-sizing: border-box;
+  padding-left: 24px;
+  padding-right: 24px;
+  padding-top: 8px;
+  flex-grow: 1;
+}
+
+.mainScreenContent .steps {
+  margin-top: 34px;
+}
+
+.mainScreenContent .steps .stepsTitle {
+  font-weight: 600;
+}
+
+.mainScreenContent .steps .step {
+  display: flex;
+  padding: 12px;
+  width: 100%;
+  background: var(--white);
+  border-radius: 10px;
+  box-sizing: border-box;
+  margin-top: 16px;
+  font-size: 15px;
+}
+
+.stepNumber {
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.secondaryText {
+  color: var(--gray);
+}

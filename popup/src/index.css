@@ -1,0 +1,40 @@
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap");
+
+:root {
+  --gray-bg: #f7f7f8;
+  --white: #ffffff;
+  --black: #1d1d1b;
+  --gray: #a3a5a7;
+
+  --green: #47cd54;
+  --yellow: #fbbe22;
+  --red: #f25454;
+  --blue: #2c68fa;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
+    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  left: 0;
+
+  height: 100%;
+}
+
+#root {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  left: 0;
+
+  height: 100%;
+}

@@ -1,0 +1,17 @@
+{
+  "name": "video-testing-tool",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "install-all": "npm --prefix ./popup i && npm --prefix ./injection i",
+    "inject": "node index.js",
+    "build": "./build.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://s2.git.fora-soft.com/forasoft/video-testing-tool.git"
+  },
+  "author": "",
+  "license": "ISC"
+}
