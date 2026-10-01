@@ -1,0 +1,14 @@
+{
+  "name": "streamtest-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "End-to-end tests of the StreamTest extension on the stand (Playwright)",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}

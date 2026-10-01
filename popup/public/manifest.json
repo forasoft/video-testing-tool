@@ -1,37 +1,63 @@
 {
   "name": "StreamTest",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "manifest_version": 3,
   "background": {
     "service_worker": "background.js"
   },
-  "description": "Test live video streams",
+  "description": "Check any participant’s WebRTC video stream: live metrics, problems with likely causes, and a report to share.",
   "icons": {
-      "512": "logo512.png"
+    "16": "logo16.png",
+    "32": "logo32.png",
+    "48": "logo48.png",
+    "128": "logo128.png",
+    "512": "logo512.png"
   },
-  "web_accessible_resources": [{
-    "resources": ["index.html", "injection.js"],
-    "matches": [
-      "https://*/*"
-    ]
-  }],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "index.html",
+        "injection.js",
+        "main.css",
+        "assets/*"
+      ],
+      "matches": [
+        "https://*/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ]
+    }
+  ],
   "content_scripts": [
     {
-      "matches": ["https://*/*", "http://*/"],
-      "js": ["main.js"],
+      "matches": [
+        "https://*/*",
+        "http://*/",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": [
+        "main.js"
+      ],
       "run_at": "document_end"
     }
   ],
   "permissions": [
     "contextMenus",
     "activeTab",
-    "scripting"
+    "scripting",
+    "storage"
   ],
   "host_permissions": [
     "http://*/",
-    "https://*/*"
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
   ],
   "action": {
-      "default_icon": "logo512.png"
+    "default_icon": {
+      "16": "logo16.png",
+      "32": "logo32.png"
+    }
   }
 }

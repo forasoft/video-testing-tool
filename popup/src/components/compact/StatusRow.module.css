@@ -1,0 +1,98 @@
+/* PRD §9.1: margins 0 15 px 10 px, radius 10, padding 8 × 12, 8 px dot, 13 px text, chevron. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  width: calc(100% - 30px);
+  height: 34px;
+  margin: 0 15px 10px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 10px;
+  font-family: inherit;
+  text-align: left;
+  color: var(--black);
+  cursor: pointer;
+  /* Quick: the color must not lag behind the text it belongs to. */
+  transition: background-color 0.2s ease-in;
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  transition: background-color 0.2s ease-in;
+}
+
+.text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 18px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.headline {
+  font-weight: 600;
+}
+
+.chevron {
+  flex: none;
+  color: var(--gray);
+}
+
+/* PRD §9.6: one 24 px line with the dot and m:ss (11 px). */
+.mini {
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 8px;
+}
+
+.time {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  line-height: 24px;
+}
+
+.gray {
+  background: rgba(29, 29, 27, 0.06);
+}
+
+.gray .dot {
+  background: var(--gray);
+}
+
+.green {
+  background: rgba(47, 158, 58, 0.09);
+}
+
+.green .dot {
+  background: var(--green);
+}
+
+.yellow {
+  background: rgba(154, 111, 0, 0.09);
+}
+
+.yellow .dot {
+  background: var(--yellow);
+}
+
+.red {
+  background: rgba(217, 59, 59, 0.09);
+}
+
+.red .dot {
+  background: var(--red);
+}

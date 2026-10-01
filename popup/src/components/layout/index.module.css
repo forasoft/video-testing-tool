@@ -3,7 +3,6 @@
   top: 0;
   left: 0;
   right: 0;
-  left: 0;
 
   height: 100%;
   width: 100%;
@@ -11,16 +10,21 @@
   background: rgba(0, 0, 0, 0.1);
 }
 
+/* As tall as its content: the iframe takes this height (VTT_CONTENT_HEIGHT). */
 .layout {
   display: flex;
   flex-flow: column;
 
   width: 100%;
-  height: 100%;
 
   border-radius: 10px;
 
   overflow: hidden;
+}
+
+/* Expanded fills the panel that main.js sized. */
+.layoutExpanded {
+  height: 100%;
 }
 
 .footer {
@@ -34,6 +38,8 @@
   justify-content: space-between;
   align-items: center;
   margin-top: auto;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .footer > * {
@@ -42,13 +48,19 @@
 }
 
 .footerBtn {
+  position: relative;
   height: 20px;
   border: none;
+  border-radius: 6px;
   background: none;
-  outline: none !important;
   margin: 0;
   padding: 0;
   cursor: pointer;
+}
+
+.footerBtn:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
 }
 
 .footerBtn:hover .footerText {
@@ -76,22 +88,27 @@
   display: flex;
   align-items: center;
   margin-left: 11px;
-  color: var(--gray);
+  color: var(--gray-text);
   font-size: 16px;
+  animation: fadeIn 0.15s ease-in;
 }
-.footer .footerText:hover {
-  color: #a3a5a8;
-  transition: 0.3s ease;
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .footer .footerText:first-child {
   margin-left: 0;
   margin-right: 6px;
 }
 
+/* The tagline: two centered lines, as far from the panel's edges as the start screen's text. */
 .credo {
+  margin: 12px 24px 16px;
   font-size: 12px;
-  line-height: 20px;
-  color: var(--gray);
+  line-height: 16px;
+  text-align: center;
+  color: var(--gray-text);
 }
 .linkIcon {
   cursor: pointer;
@@ -122,11 +139,7 @@
   cursor: pointer;
   color: var(--blue)
 }
-.footerBtnInactive{
-  border: none;
-  background: none;
-  outline: none !important;
-  margin: 0;
-  padding: 0;
-  cursor: arrow;
+/* `by ForaSoft`: text and a link, not a button. */
+.footerBy {
+  cursor: default;
 }

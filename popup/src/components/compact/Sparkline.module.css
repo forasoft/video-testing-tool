@@ -1,0 +1,25 @@
+.sparkline {
+  flex: none;
+  display: block;
+  margin: 0 4px;
+}
+
+.sparkline path {
+  transition: stroke 1s ease-in;
+}
+
+.good {
+  stroke: var(--green);
+}
+
+.moderate {
+  stroke: var(--yellow);
+}
+
+.bad {
+  stroke: var(--red);
+}
+
+.none {
+  stroke: var(--gray);
+}

@@ -41,15 +41,3 @@ chrome.action.onClicked.addListener((tab) => {
     args: [data],
   });
 });
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  switch (message.id) {
-    case "some-event":
-      sendResponse({ id: "some-event-resp", data: { PI: 3.1415926 } });
-      return;
-    case "videoElementBeingExplored":
-      return;
-    default:
-      return;
-  }
-});

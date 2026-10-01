@@ -1,9 +1,9 @@
 import { VTTInternal } from "types/vtt-internal";
 
-import wrappRTCPeerConnection from "./wrap-web-rtc";
+import wrapRTCPeerConnection from "./wrap-web-rtc";
 
 const initWrappers = (vttInternal: VTTInternal) => {
-  wrappRTCPeerConnection(vttInternal);
+  wrapRTCPeerConnection(vttInternal);
 };
 
 export default initWrappers;

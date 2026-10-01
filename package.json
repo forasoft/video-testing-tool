@@ -1,17 +1,25 @@
 {
   "name": "video-testing-tool",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "",
-  "main": "index.js",
   "scripts": {
     "install-all": "npm --prefix ./popup i && npm --prefix ./injection i",
-    "inject": "node index.js",
-    "build": "./build.sh"
+    "build": "./build.sh",
+    "watch": "node scripts/watch.mjs",
+    "test": "npm --prefix ./injection test",
+    "stand": "node stand/server.mjs",
+    "stand:turn": "docker compose -f stand/docker-compose.yml up -d --build",
+    "stand:turn:down": "docker compose -f stand/docker-compose.yml down",
+    "lint:stand": "ESLINT_USE_FLAT_CONFIG=false ./injection/node_modules/.bin/eslint --ext .js,.mjs stand scripts e2e",
+    "e2e": "npm --prefix ./e2e test --",
+    "e2e:install": "npm --prefix ./e2e i && npx --prefix ./e2e playwright install chromium",
+    "e2e:repeat": "node e2e/repeat.js",
+    "store:assets": "node scripts/store-assets.mjs"
   },
   "repository": {
     "type": "git",
-    "url": "https://s2.git.fora-soft.com/forasoft/video-testing-tool.git"
+    "url": "https://github.com/forasoft/video-testing-tool.git"
   },
   "author": "",
-  "license": "ISC"
+  "license": "MIT"
 }

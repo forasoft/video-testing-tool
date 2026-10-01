@@ -1,9 +1,10 @@
 import { CustomPeerConnection } from "src/types";
 import { vttInternal } from "./connectionsObserver";
 
-export const findRTCConnectionByTracks = (videoElement: any) => {
+export const findRTCConnectionByTracks = (videoElement: HTMLVideoElement) => {
   //should return RTCconnection that contains all the tracks from videoElement
-  const tracks = videoElement.srcObject.getTracks();
+  const srcObject = videoElement.srcObject as MediaStream | null;
+  const tracks = srcObject?.getTracks();
 
   if (!tracks) {
     return;
@@ -15,23 +16,25 @@ export const findRTCConnectionByTracks = (videoElement: any) => {
 
   let theConnection: CustomPeerConnection | null = null;
 
+  if (!vttInternal) {
+    return theConnection;
+  }
+
   for (let j = 0; j < vttInternal.length; j++) {
-    const rtcPeerConnection: any = vttInternal[j];
+    const rtcPeerConnection = vttInternal[j] as CustomPeerConnection;
 
     let flag = true;
 
     if (!rtcPeerConnection.tracks) {
       continue;
     }
-    const connectionTracks = rtcPeerConnection.tracks.map(
-      (track: MediaStreamTrack) => {
-        return track.id;
-      }
+    const connectionTrackIds = new Set(
+      rtcPeerConnection.tracks.map((track: MediaStreamTrack) => track.id)
     );
-    for (let i = 0; i < trackIds.length || 0; i++) {
+    for (let i = 0; i < trackIds.length; i++) {
       if (
-        !connectionTracks.includes(trackIds[i]) &&
-        !connectionTracks.includes(tracks[i].label)
+        !connectionTrackIds.has(trackIds[i]) &&
+        !connectionTrackIds.has(tracks[i].label)
       ) {
         flag = false;
         break;
@@ -42,11 +45,5 @@ export const findRTCConnectionByTracks = (videoElement: any) => {
       break;
     }
   }
-  if (!theConnection) {
-    console.log(
-      "Скорее всего в vttInternal нет нужного rtcPeerConnection или в нужном rtcPeerConnection нет нужных треков)"
-    );
-  }
-
   return theConnection;
 };

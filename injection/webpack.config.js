@@ -1,7 +1,11 @@
 /* eslint-disable */
 
+const fs = require('fs');
 const path = require('path');
+const webpack = require('webpack');
 const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
+
+const manifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../popup/public/manifest.json'), 'utf8'));
 
 module.exports = {
   entry: './src/index.ts',
@@ -19,6 +23,9 @@ module.exports = {
       },
     ],
   },
+  plugins: [
+    new webpack.DefinePlugin({ __VTT_VERSION__: JSON.stringify(manifest.version) }),
+  ],
   resolve: {
     plugins: [new TsconfigPathsPlugin({
       configFile: './tsconfig.json',

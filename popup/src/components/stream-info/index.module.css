@@ -6,34 +6,52 @@
   font-size: 16px;
   max-height: 48px;
   box-sizing: border-box;
+  overflow: hidden;
 }
 .wrapper + .wrapper {
   margin-top: 10px;
 }
 
 .stat {
-  height: 48px;
+  height: 24px;
   background: var(--white);
   border-radius: 10px;
   color: var(--black);
   font-size: 16px;
-
+  padding: 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  overflow: hidden;
 }
 
 .stat .leftSide {
-  width: 60%;
-  margin-left: 20px;
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
 }
 
+.stat .leftSide svg {
+  flex-shrink: 0;
+}
+
 .stat .leftSide .text {
-  margin-left: 12px;
+  margin-left: 8px;
   line-height: 24px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: fadeIn 0.15s ease-in;
+}
+
+.stat .leftSide .iconWrapper {
+  flex: none;
+  margin-left: 4px;
+}
+
+.stat .valueSide {
+  flex: none;
 }
 
 .hintIcon {
@@ -51,7 +69,7 @@
   border-radius: 8px;
   padding: 10px;
   background: var(--white);
-  box-shadow: 0px 10px 60px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 60px rgba(0, 0, 0, 0.1);
   opacity: 1;
   transition: opacity 0.3s ease-in;
   font-size: 12px;
@@ -76,7 +94,7 @@
   position: absolute;
   z-index: 300;
   background: var(--white);
-  box-shadow: 0px 10px 60px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 60px rgba(0, 0, 0, 0.1);
   border-radius: 8px;
   opacity: 1;
   transition: opacity 0.3s ease-in;
@@ -103,9 +121,8 @@
   display: flex;
   justify-content: flex-end;
   font-weight: 600;
-  margin-right: 20px;
-  width: 100px;
   text-align: end;
+  white-space: nowrap;
 }
 
 .stat .rightSide.good {
@@ -123,6 +140,14 @@
   transition: color 1s ease-in;
 }
 
+.noValue {
+  display: block;
+  color: var(--gray-text);
+  font-weight: 600;
+  line-height: 18px;
+  text-align: end;
+}
+
 .iconWrapper {
   position: relative;
   margin-left: 10px;
@@ -133,6 +158,14 @@
 .codecsWrapper {
   margin: 15px;
   margin-bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.codecs {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .codec {
@@ -149,8 +182,14 @@
 }
 
 .codec .secondaryText {
-  color: var(--gray);
+  color: var(--gray-text);
   font-size: 16px;
+  animation: fadeIn 0.15s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .codec .errorTextContainer {
@@ -161,26 +200,4 @@
 .codec .errorTextContainerHidden {
   left: -5px;
   line-height: 1.1;
-}
-
-.wrapperDisconnectScreen {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 24px;
-}
-
-.disconnectTitle {
-  margin-top: 22px;
-  color: var(--black);
-}
-
-.disconnectText {
-  margin-top: 4px;
-  color: var(--gray);
 }

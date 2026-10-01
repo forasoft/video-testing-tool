@@ -1,0 +1,429 @@
+/* The tab's height at least: the problems list takes the rest of it (PRD §11.4). */
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  min-height: 100%;
+}
+
+/* The window controls at the right of the verdict row (PRD §11.1). */
+.controls {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Segmented control, like the tabs of the header (PRD §8.3, §17). */
+.segment {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9px;
+  background: rgba(29, 29, 27, 0.06);
+}
+
+.segmentButton {
+  height: 22px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--gray-text);
+  font-family: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.segmentActive {
+  background: var(--white);
+  color: var(--black);
+  font-weight: 600;
+}
+
+/* Live: a toggle with a dot, green while the window follows the time. */
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(29, 29, 27, 0.06);
+  color: var(--gray-text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.liveDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--gray);
+}
+
+.liveOn {
+  background: rgba(47, 158, 58, 0.1);
+  color: var(--green-text);
+}
+
+.liveOn .liveDot {
+  background: var(--green);
+}
+
+.segmentButton:focus-visible,
+.live:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+/* PRD §11.2: a white card, padding 12 × 16; rows share one time axis. */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-sizing: border-box;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--white);
+}
+
+/* The open problem's card (PRD §12.2): over the charts at the right, 400 px, at most 380 px high. */
+.problemOverlay {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 30;
+  box-sizing: border-box;
+  width: 400px;
+  max-width: calc(100% - 16px);
+  max-height: 380px;
+  padding: 14px 16px 16px;
+  overflow-y: auto;
+  border-radius: 10px;
+  background: var(--white);
+  box-shadow: 0 10px 60px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(29, 29, 27, 0.06);
+}
+
+/* The chart rows under one layer that takes the pointer (PRD §11.3). */
+.charts {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Over the plots only: 84 px label column + 10 px gap to the left of them. */
+.overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 94px;
+  touch-action: none;
+}
+
+.draggable {
+  cursor: grab;
+}
+
+.draggable:active {
+  cursor: grabbing;
+}
+
+/* The cursor through all rows and its tooltip (PRD §11.3, §17): white, 11 px. */
+.cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  margin-left: -0.5px;
+  background: rgba(29, 29, 27, 0.45);
+  pointer-events: none;
+}
+
+.tooltip {
+  position: absolute;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 10px 60px rgba(0, 0, 0, 0.1);
+  color: var(--black);
+  font-size: 11px;
+  line-height: 15px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.tooltipTitle {
+  font-weight: 600;
+}
+
+.tooltipLine {
+  display: block;
+}
+
+/* Gray band: the tab was hidden or the video paused (PRD §11.2, §14.4) — gray, 10 %. */
+.hidden {
+  fill: rgba(29, 29, 27, 0.1);
+}
+
+/* Problem bands (PRD §11.2): warn — yellow 18 %, severe — red 15 %; the number in a 14 px circle. */
+.warn {
+  fill: var(--yellow);
+  opacity: 0.18;
+}
+
+.severe {
+  fill: var(--red);
+  opacity: 0.15;
+}
+
+.warnNumber {
+  fill: var(--yellow);
+}
+
+.severeNumber {
+  fill: var(--red);
+}
+
+.warnNumberText,
+.severeNumberText {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.warnNumberText {
+  fill: var(--black);
+}
+
+.severeNumberText {
+  fill: var(--white);
+}
+
+/* The events band (PRD §11.2): circles of 14 px with the event's number, colored by kind (§12.1). */
+.events {
+  position: relative;
+}
+
+.eventGroup {
+  position: absolute;
+  top: 5px;
+  width: 0;
+  height: 14px;
+}
+
+.event {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  transform: translateX(-50%);
+  border: none;
+  border-radius: 999px;
+  color: var(--white);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 14px;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.event:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+.tone_green {
+  background: var(--green-text);
+}
+
+.tone_yellow {
+  background: var(--yellow);
+  color: var(--black);
+}
+
+.tone_gray {
+  background: var(--gray-text);
+}
+
+.tone_blue {
+  background: var(--blue);
+}
+
+/* The tip of a circle (PRD §11.3, §17 tooltip): above it, towards the middle near the edges. */
+.eventTip {
+  position: absolute;
+  bottom: 20px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 10px 60px rgba(0, 0, 0, 0.1);
+  color: var(--black);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.tipMiddle {
+  left: 0;
+  transform: translateX(-50%);
+}
+
+.tipStart {
+  left: -7px;
+}
+
+.tipEnd {
+  right: -7px;
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+/* The label column: 84 px, name 11 px / 600, current value 13 px mono / 600 in its goodness color. */
+.label {
+  flex: none;
+  width: 84px;
+  padding-top: 1px;
+}
+
+.name {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 14px;
+  color: var(--black);
+}
+
+.value {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--gray-text);
+  white-space: nowrap;
+  transition: color 1s ease-in;
+}
+
+.good {
+  color: var(--green-text);
+}
+
+.moderate {
+  color: var(--yellow-text);
+}
+
+.bad {
+  color: var(--red-text);
+}
+
+/* The plot takes the rest of the width; it is drawn in pixels of that width. */
+.plot {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.plot svg {
+  display: block;
+}
+
+.grid {
+  stroke: var(--grid);
+  stroke-width: 1;
+}
+
+/* Delay: the 300 ms line (PRD §11.2). */
+.limit {
+  stroke: var(--red);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.axisLabel.limitLabel {
+  fill: var(--red-text);
+}
+
+/* A white halo keeps the labels readable where a line passes under them. */
+.axisLabel {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 9px;
+  fill: var(--gray-text);
+  stroke: var(--white);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+
+/* The stream is gone, PRD §14.3: a red banner over the problems list with the way to the start screen. */
+.disconnected {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0 6px;
+  padding: 6px 6px 6px 12px;
+  border-radius: 8px;
+  background: rgba(217, 59, 59, 0.08);
+}
+
+.disconnectedText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--red-text);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* PRD §17 secondary text button, 28 px. */
+.pickAnother {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(29, 29, 27, 0.06);
+  color: var(--black);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pickAnother:hover {
+  background: rgba(29, 29, 27, 0.1);
+}
+
+.pickAnother:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}

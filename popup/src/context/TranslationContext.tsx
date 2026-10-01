@@ -1,13 +1,18 @@
 import React, { FC, useMemo, useContext } from "react";
 import { translation as en } from "../translations/en";
 
-const TranslationContext = React.createContext(en as any);
+type Translation = typeof en;
+
+type TranslationNode = string | { [key: string]: TranslationNode };
+
+const TranslationContext = React.createContext<Translation>(en);
 
 interface IProps {
   language?: string,
+  children?: React.ReactNode,
 }
 
-const languages = {
+const languages: Record<string, Translation> = {
   en,
 };
 
@@ -17,7 +22,7 @@ export const TranslationContextProvider: FC<IProps> = ({ language, children }) =
       return en;
     }
 
-    return (languages as any)[language] || en;
+    return languages[language] || en;
   }, [language]);
   return (
     <TranslationContext.Provider value={translation}>
@@ -32,6 +37,15 @@ export const useTranslation = () => {
   return (key: string): string => {
     const keys = key.split(".");
 
-    return keys.slice(1).reduce((acc, value) => acc?.[value], translation[keys[0]]) || key;
+    let node: TranslationNode | undefined = translation as TranslationNode;
+    for (const segment of keys) {
+      if (node && typeof node === "object" && segment in node) {
+        node = node[segment];
+      } else {
+        return key;
+      }
+    }
+
+    return typeof node === "string" ? node : key;
   };
 };

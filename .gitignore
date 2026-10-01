@@ -1,5 +1,8 @@
 dist
 node_modules
 build
+.idea
 .vscode
 build.tar.gz
+store/*.zip
+.DS_Store

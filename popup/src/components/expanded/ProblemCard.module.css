@@ -1,0 +1,159 @@
+/* The card of a problem, PRD §12.2. */
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--black);
+}
+
+/* Title 14 px / 600, category gray, ✕ at the right. */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.warnDot {
+  background: var(--yellow);
+}
+
+.severeDot {
+  background: var(--red);
+}
+
+.title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.category {
+  flex: none;
+  font-size: 12px;
+  color: var(--gray-text);
+}
+
+.close {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: -4px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--black);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: rgba(29, 29, 27, 0.06);
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+/* `0:38–0:48 · 9.7 s · severe` — 11 px mono gray. */
+.time {
+  margin-top: -4px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--gray-text);
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  max-width: 368px;
+  height: 64px;
+}
+
+.warn {
+  fill: var(--yellow);
+  opacity: 0.18;
+}
+
+.severe {
+  fill: var(--red);
+  opacity: 0.15;
+}
+
+.grid {
+  stroke: var(--grid);
+  stroke-width: 1;
+}
+
+/* Page jank: a long task starts at 50 ms (PRD §12.4). */
+.limit {
+  stroke: var(--gray);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.axisLabel {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 9px;
+  fill: var(--gray-text);
+  stroke: var(--white);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+
+/* Key — value, 12 px, values mono. */
+.rows,
+.texts {
+  display: grid;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.rows {
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+}
+
+.texts {
+  grid-template-columns: max-content minmax(0, 1fr);
+  margin-top: 2px;
+}
+
+.key {
+  color: var(--gray-text);
+}
+
+.value {
+  margin: 0;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.causeKey,
+.checkKey {
+  font-weight: 600;
+}
+
+.cause,
+.check {
+  margin: 0;
+}
+
+.check {
+  color: var(--gray-text);
+}

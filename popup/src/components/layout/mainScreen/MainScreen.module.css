@@ -36,5 +36,74 @@
 }
 
 .secondaryText {
-  color: var(--gray);
+  color: var(--gray-text);
+}
+
+/* Why the last attempt failed, PRD §14.2: a red line under the steps. */
+.error {
+  margin: 12px 0 0;
+  color: var(--red-text);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+/* Last session, PRD §14.1: the ended session of this page, its Report and its JSON. */
+.lastSession {
+  display: block;
+  margin-top: 24px;
+}
+
+.lastSession .stepsTitle {
+  font-weight: 600;
+}
+
+.lastSessionCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--white);
+}
+
+.lastSessionLine {
+  overflow: hidden;
+  font-size: 15px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.lastSessionButtons {
+  display: flex;
+  gap: 8px;
+}
+
+/* PRD §17 main text button: 28 px, radius 8, blue with white text. */
+.openReport {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--blue);
+  color: var(--white);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.openReport:hover {
+  background: #1f57e0;
+}
+
+.openReport:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
 }

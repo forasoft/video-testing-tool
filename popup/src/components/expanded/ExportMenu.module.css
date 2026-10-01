@@ -1,0 +1,73 @@
+.wrapper {
+  position: relative;
+  flex: none;
+}
+
+/* PRD §17 secondary text button: 28 px, radius 8, rgba(29, 29, 27, 0.06). */
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(29, 29, 27, 0.06);
+  color: var(--black);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: rgba(29, 29, 27, 0.1);
+}
+
+.button:disabled {
+  color: var(--gray-text);
+  cursor: default;
+}
+
+.button:disabled:hover {
+  background: rgba(29, 29, 27, 0.06);
+}
+
+.button:focus-visible,
+.item:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+/* The menu opens under the button, over the tab (PRD §17 tooltip look: white, radius 8, shadow). */
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 10px 60px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(29, 29, 27, 0.06);
+}
+
+.item {
+  height: 30px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--black);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: rgba(29, 29, 27, 0.06);
+}

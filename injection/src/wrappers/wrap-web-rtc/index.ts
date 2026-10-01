@@ -1,37 +1,45 @@
+import { CustomPeerConnection } from "src/types";
 import { VTTInternal } from "types/vtt-internal";
 import copyProperties from "utils/copy-properties";
+import { watchTiming } from "./timing";
+import { numberTrack } from "./tracks";
 
 const RealRTCPeerConnection = RTCPeerConnection;
 
-const wrappRTCPeerConnection = (vttInternal: VTTInternal) => {
+interface RTCPeerConnectionWindow extends Window {
+  RTCPeerConnection: typeof RTCPeerConnection;
+  webkitRTCPeerConnection: typeof RTCPeerConnection;
+}
+
+const wrapRTCPeerConnection = (vttInternal: VTTInternal) => {
   function WrappedRTCPeerConnection(configuration?: RTCConfiguration): RTCPeerConnection {
     if (!(this instanceof WrappedRTCPeerConnection)) {
       // call without new if wrapper was called without too (to throw native error)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (<any>RealRTCPeerConnection)(configuration);
+      return (RealRTCPeerConnection as unknown as (configuration?: RTCConfiguration) => RTCPeerConnection)(configuration);
     }
 
     const peer = new RealRTCPeerConnection(configuration);
 
     vttInternal.push(peer);
+    watchTiming(peer);
 
     const originalClose = peer.close;
     peer.close = (...args) => {
       const closedIndex = vttInternal.findIndex((connection) => {
         return connection === peer;
-      })
+      });
       vttInternal.splice(closedIndex, 1);
 
       originalClose.call(peer, ...args);
-    }
+    };
 
     peer.addEventListener("track", (e) => {
-      const target = e.target as any;
+      const target = e.target as CustomPeerConnection;
       if (!target.tracks) {
         target.tracks = [];
       }
       target.tracks.push(e.track);
-
+      numberTrack(peer, e.track);
     });
 
     return peer;
@@ -41,14 +49,14 @@ const wrappRTCPeerConnection = (vttInternal: VTTInternal) => {
 
   RealRTCPeerConnection.prototype.constructor = WrappedRTCPeerConnection;
 
+  const targetWindow = window as unknown as RTCPeerConnectionWindow;
+
   if ("RTCPeerConnection" in window) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (<any>window).RTCPeerConnection = WrappedRTCPeerConnection;
+    targetWindow.RTCPeerConnection = WrappedRTCPeerConnection as unknown as typeof RTCPeerConnection;
   }
   if ("webkitRTCPeerConnection" in window) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (<any>window).webkitRTCPeerConnection = WrappedRTCPeerConnection;
+    targetWindow.webkitRTCPeerConnection = WrappedRTCPeerConnection as unknown as typeof RTCPeerConnection;
   }
 };
 
-export default wrappRTCPeerConnection;
+export default wrapRTCPeerConnection;

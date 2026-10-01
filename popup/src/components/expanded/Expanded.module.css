@@ -1,0 +1,23 @@
+/* PRD §10: 16 px padding, gray background; as tall as the panel (main.js sets 700 px or less). */
+.expanded {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  height: 100%;
+  padding: 16px;
+  background: var(--gray-bg);
+  color: var(--black);
+}
+
+/* The tab scrolls when the window is small (PRD §8.1, §16 F17). A scroll container clips what sticks out of it, so it
+   reaches 3 px further on each side with 3 px of padding: the focus outline of an element at its edge (2 px at 1 px
+   from it) is drawn whole, and the content stays where it was. */
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: -3px;
+  padding: 3px;
+  overflow-y: auto;
+  scroll-padding: 3px;
+}

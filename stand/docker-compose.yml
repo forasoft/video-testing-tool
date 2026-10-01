@@ -1,0 +1,26 @@
+# TURN server for the stand. Both peers of the loopback call allocate relays on
+# this server, so media flows browser → shaper (udp/3479) → coturn → shaper → browser.
+# Relay addresses stay inside the container: the browser only ever talks to 3478.
+# The relay port range is wide: an allocation that a closed browser did not release
+# lives 10 min, and e2e runs start many calls (41 ports ran out in a ×10 run).
+services:
+  turn:
+    image: coturn/coturn:4.6
+    container_name: st-turn
+    ports:
+      - "127.0.0.1:3478:3478/udp"
+      - "127.0.0.1:3478:3478/tcp"
+    command:
+      - -n
+      - --log-file=stdout
+      - --listening-port=3478
+      - --fingerprint
+      - --lt-cred-mech
+      - --user=stand:stand
+      - --realm=stand
+      - --no-tls
+      - --no-dtls
+      - --no-cli
+      - --min-port=49160
+      - --max-port=65535
+    restart: unless-stopped

@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StreamTest stand</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="stand.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>StreamTest stand</h1>
+    <span id="extBadge" class="badge">Extension: checking…</span>
+    <span id="turnBadge" class="badge">TURN: checking…</span>
+    <span id="netBadge" class="badge">Network: clean</span>
+    <span class="spacer"></span>
+    <span id="callBadge" class="badge">Idle</span>
+    <span id="clock" class="clock" title="Time since Start">0:00</span>
+  </header>
+
+  <main class="layout">
+    <aside class="column">
+      <section class="card">
+        <h2>Call setup</h2>
+        <div class="fields">
+          <label for="resolution">Resolution</label>
+          <select id="resolution">
+            <option value="360">640×360</option>
+            <option value="720" selected>1280×720</option>
+            <option value="1080">1920×1080</option>
+          </select>
+          <label for="fps">Frame rate</label>
+          <select id="fps">
+            <option value="15">15 fps</option>
+            <option value="30" selected>30 fps</option>
+            <option value="60">60 fps</option>
+          </select>
+          <label for="codec">Codec</label>
+          <select id="codec">
+            <option value="VP8" selected>VP8</option>
+            <option value="VP9">VP9</option>
+            <option value="H264">H264</option>
+            <option value="AV1">AV1</option>
+          </select>
+          <label for="route">Route</label>
+          <select id="route">
+            <option value="direct" selected>Direct</option>
+            <option value="turn-udp">TURN udp (shaped)</option>
+            <option value="turn-tcp">TURN tcp</option>
+          </select>
+          <label for="preset">Preset</label>
+          <select id="preset">
+            <option value="normal" selected>Normal</option>
+            <option value="blurry">Blurry — 1080p at 250 kbps</option>
+            <option value="novideo">No video for 6 s</option>
+            <option value="desync">Desync — video buffer +1 s, lip sync catches up</option>
+          </select>
+        </div>
+        <label class="check"><input type="checkbox" id="twoWay" checked> Two-way call</label>
+        <label class="check"><input type="checkbox" id="autoStart"> Auto-start StreamTest after connect</label>
+        <div class="row">
+          <button id="startBtn" class="primary" type="button">Start</button>
+          <button id="stopBtn" type="button" disabled>Stop</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>StreamTest</h2>
+        <button id="testBtn" type="button" class="wide" disabled>Test this stream</button>
+        <p class="hint">Starts a session on the receiver video without the context menu — the same message the extension's menu item sends.</p>
+      </section>
+
+      <section class="card">
+        <h2>Scenarios</h2>
+        <div class="grid">
+          <button type="button" data-needs-call id="jankBtn">Jank 400 ms</button>
+          <button type="button" id="cpuBtn" aria-pressed="false">CPU burn: off</button>
+          <button type="button" data-needs-call id="freezeBtn">Freeze source 3 s</button>
+          <button type="button" data-needs-call id="pauseBtn">Pause video 3 s</button>
+          <button type="button" data-needs-call id="hideBtn">Hide tab 10 s</button>
+          <button type="button" data-needs-call id="closeBtn">Close receiver PC</button>
+          <button type="button" data-needs-call id="secondBtn" class="span2">Add 2nd stream</button>
+        </div>
+        <div class="fields">
+          <label for="capBitrate">Cap bitrate</label>
+          <select id="capBitrate" data-needs-call>
+            <option value="0" selected>off</option>
+            <option value="1000">1000 kbps</option>
+            <option value="300">300 kbps</option>
+            <option value="150">150 kbps</option>
+          </select>
+          <label for="layer">Layer</label>
+          <select id="layer" data-needs-call>
+            <option value="1" selected>full</option>
+            <option value="2">half</option>
+            <option value="4">quarter</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Network</h2>
+        <p class="hint" id="netHint">Presets shape traffic that goes through TURN: pick the “TURN udp (shaped)” route.</p>
+        <div class="fields">
+          <label for="netTarget">Presets apply to</label>
+          <select id="netTarget">
+            <option value="call" selected>the call</option>
+            <option value="second">the 2nd stream</option>
+          </select>
+        </div>
+        <div class="grid" id="netButtons">
+          <button type="button" data-net="clean">Clean</button>
+          <button type="button" data-net="loss5">Loss 5 %</button>
+          <button type="button" data-net="loss20">Loss 20 %</button>
+          <button type="button" data-net="jitter">Jitter 80±60 ms</button>
+          <button type="button" data-net="throttle300" class="span2">Throttle 300 kbit 10 s</button>
+          <button type="button" data-net="blackout3">Blackout 3 s</button>
+          <button type="button" data-net="blackout8">Blackout 8 s</button>
+          <button type="button" data-net="blackout40" class="span2">Blackout 40 s</button>
+        </div>
+        <button id="relayBtn" type="button" class="wide" data-needs-call>Block UDP → relay tcp</button>
+      </section>
+    </aside>
+
+    <aside class="column truthColumn">
+      <section class="card">
+        <div class="cardHead">
+          <h2>Truth</h2>
+          <button id="dumpBtn" type="button" data-needs-call>Dump getStats</button>
+        </div>
+        <p class="hint">Computed by the stand from its own getStats() every second — compare the extension's numbers with these.</p>
+        <table class="truth">
+          <tbody id="truth"></tbody>
+        </table>
+      </section>
+    </aside>
+
+    <section class="stage">
+      <div class="card">
+        <div class="cardHead">
+          <h2>Receiver</h2>
+          <span class="hint">right-click → Test stream</span>
+        </div>
+        <video id="remoteVideo" class="mainVideo" autoplay playsinline muted></video>
+      </div>
+      <div class="previews">
+        <figure class="card">
+          <video id="localVideo" autoplay playsinline muted></video>
+          <figcaption>Sender A — source</figcaption>
+        </figure>
+        <figure class="card">
+          <video id="returnVideo" autoplay playsinline muted></video>
+          <figcaption>Receiver's return video (two-way)</figcaption>
+        </figure>
+      </div>
+      <div class="card" id="secondCard" hidden>
+        <div class="cardHead"><h2>Stream 2</h2></div>
+        <video id="secondVideo" class="mainVideo" autoplay playsinline muted></video>
+      </div>
+      <section class="card">
+        <div class="cardHead">
+          <h2>Log</h2>
+          <span class="hint">time since Start</span>
+        </div>
+        <ol id="log" class="log"></ol>
+      </section>
+    </section>
+
+  </main>
+
+  <script type="module" src="stand.js"></script>
+</body>
+</html>

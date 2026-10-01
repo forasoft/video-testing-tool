@@ -1,0 +1,300 @@
+/* PRD §13: the Report is one column of white cards; the tab scrolls. */
+.report {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+  box-sizing: border-box;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--white);
+  color: var(--black);
+}
+
+.title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+/* Verdict, PRD §13.1: the chip (Copy summary at the right), then the text for a ticket. */
+.verdictHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+}
+
+.verdictText {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+/* Previous run on this site, PRD §13.1: better values green, worse red; gray on the first run. */
+.previousRun {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.better {
+  color: var(--green-text);
+  font-weight: 600;
+}
+
+.worse {
+  color: var(--red-text);
+  font-weight: 600;
+}
+
+.firstRun {
+  color: var(--gray-text);
+}
+
+/* PRD §17 secondary text button: 28 px, radius 8; as wide with `Copied`, so nothing moves for that second. */
+.copy {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 124px;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(29, 29, 27, 0.06);
+  color: var(--black);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.copy:hover {
+  background: rgba(29, 29, 27, 0.1);
+}
+
+.copy:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+/* No clipboard (PRD §16 F9): the summary, selected, to copy by hand. */
+.manual {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.manualLabel {
+  color: var(--gray-text);
+  font-size: 11px;
+}
+
+.manualText {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--grid);
+  border-radius: 8px;
+  background: var(--gray-bg);
+  color: var(--black);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 16px;
+  white-space: pre;
+  resize: vertical;
+}
+
+.manualText:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+/* Problems, PRD §13.2: the rows of the Timeline's list; a row opens its card under it. */
+.problems {
+  margin: 0 -8px;
+}
+
+.open svg {
+  transform: rotate(180deg);
+}
+
+/* The card of §12.2 in the flow of the page, as wide as over the charts; its left edge under the interval. */
+.inlineCard {
+  box-sizing: border-box;
+  max-width: 400px;
+  margin: 2px 0 8px 26px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--gray-bg);
+}
+
+.empty {
+  padding: 10px 0 4px;
+  color: var(--gray-text);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* Distribution, PRD §13.3: headers 10 px gray, values mono 11 px, the worst value in the color of §7. */
+.note {
+  margin: 0 0 6px;
+  color: var(--gray-text);
+  font-size: 11px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.metricColumn {
+  width: 160px;
+}
+
+.targetColumn {
+  width: 90px;
+}
+
+.table th,
+.table td {
+  height: 24px;
+  padding: 0 0 0 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.table thead th {
+  color: var(--gray-text);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.table td {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.table tbody tr + tr > * {
+  border-top: 1px solid var(--grid);
+}
+
+.table .metric {
+  padding-left: 0;
+  font-size: 12px;
+  font-weight: 400;
+  text-align: left;
+}
+
+.table thead .metric {
+  font-size: 10px;
+}
+
+/* Freezes and First frame: one cell from the typical column on. */
+.table .wide {
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+
+.good {
+  color: var(--green-text);
+}
+
+.moderate {
+  color: var(--yellow-text);
+}
+
+.bad {
+  color: var(--red-text);
+}
+
+/* Other streams on this page, PRD §13.4: the table of the Distribution; the name with the dot of the row's worst
+   grade, its track and mid in a tooltip above it; `selected` gray. */
+.stream {
+  position: relative;
+}
+
+.streamName {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 4px;
+  cursor: default;
+}
+
+.streamName:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+.streamDot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--gray);
+}
+
+.dotGood {
+  background: var(--green);
+}
+
+.dotModerate {
+  background: var(--yellow);
+}
+
+.dotBad {
+  background: var(--red);
+}
+
+/* PRD §17 tooltip; not laid out while hidden, so that it does not stretch the scrolled tab. */
+.streamTooltip {
+  position: absolute;
+  bottom: calc(100% - 2px);
+  left: 0;
+  z-index: 10;
+  display: none;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 10px 60px rgba(0, 0, 0, 0.1);
+  color: var(--black);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.stream:hover .streamTooltip,
+.stream:focus-within .streamTooltip {
+  display: block;
+}
+
+.table .selectedMark {
+  color: var(--gray-text);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+/* Export JSON and Export CSV under the cards, PRD §13.5. */
+.exports {
+  display: flex;
+  gap: 8px;
+}

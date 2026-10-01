@@ -1,0 +1,46 @@
+/* PRD §17: the tooltip of an icon button — white, radius 8, padding 10, 12 px — after 500 ms of hover or keyboard
+   focus; it goes at once. The button is its containing block (position: relative). */
+.tip {
+  position: absolute;
+  z-index: 400;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 10px 60px rgba(0, 0, 0, 0.1);
+  color: var(--black);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transition: visibility 0s, opacity 0.15s;
+}
+
+:hover > .tip,
+:focus-visible > .tip {
+  visibility: visible;
+  opacity: 1;
+  transition-delay: 500ms;
+}
+
+.below {
+  top: calc(100% + 6px);
+}
+
+/* Beside the button, for a button in a strip that clips what sticks out of it (the footer of Mini). */
+.beside {
+  top: 50%;
+  left: calc(100% + 6px);
+  transform: translateY(-50%);
+}
+
+/* A button at the panel's left edge opens its tooltip to the right, one at the right edge — to the left. */
+.start {
+  left: 0;
+}
+
+.end {
+  right: 0;
+}

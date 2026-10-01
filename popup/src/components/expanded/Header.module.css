@@ -1,0 +1,195 @@
+/* PRD §8.3: 44 px; the whole header drags the panel. */
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  cursor: move;
+  user-select: none;
+}
+
+.title {
+  margin-right: 2px;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 24px;
+  white-space: nowrap;
+}
+
+/* PRD §17 chip: 22 px high, fully rounded, 11 px / 600. */
+.chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+
+.time {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.green {
+  color: var(--green-text);
+  background: rgba(47, 158, 58, 0.1);
+}
+
+.green .dot {
+  background: var(--green);
+}
+
+.red {
+  color: var(--red-text);
+  background: rgba(217, 59, 59, 0.1);
+}
+
+.gray {
+  color: var(--gray-text);
+  background: rgba(29, 29, 27, 0.06);
+}
+
+/* Segmented control, PRD §8.3: the active tab is white, 12 px / 600. */
+.tabs {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9px;
+  background: rgba(29, 29, 27, 0.06);
+}
+
+.tab {
+  height: 22px;
+  padding: 0 11px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--gray-text);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tab.active {
+  background: var(--white);
+  color: var(--black);
+  font-weight: 600;
+}
+
+/* Connection line, PRD §8.3: 12 px, values monospace; shrinks with an ellipsis before the buttons move. */
+.connection {
+  position: relative;
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: 4px;
+}
+
+.line {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--gray-text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border-radius: 4px;
+}
+
+.value {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.line:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+.good {
+  color: var(--green-text);
+}
+
+.moderate {
+  color: var(--yellow-text);
+}
+
+.bad {
+  color: var(--red-text);
+}
+
+/* PRD §17 tooltip: white, radius 8, padding 10, 12 px; opens under the header, over the tab. */
+.tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--white);
+  box-shadow: 0 10px 60px rgba(0, 0, 0, 0.1);
+  color: var(--black);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  cursor: default;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease-in;
+}
+
+.connection:hover .tooltip,
+.connection:focus-within .tooltip {
+  opacity: 1;
+}
+
+.tooltipLine {
+  display: block;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+/* PRD §17 icon button: 28 px, radius 8; its tooltip (ButtonTip) hangs under it. */
+.iconButton {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: rgba(29, 29, 27, 0.06);
+  color: var(--black);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: rgba(29, 29, 27, 0.1);
+}
+
+.tab:focus-visible,
+.iconButton:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}

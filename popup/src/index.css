@@ -1,15 +1,34 @@
-@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap");
-
 :root {
   --gray-bg: #f7f7f8;
   --white: #ffffff;
   --black: #1d1d1b;
   --gray: #a3a5a7;
+  /* Secondary text: --gray on the light background fails the 4.5:1 contrast (PRD §17). */
+  --gray-text: #6b6d70;
+  /* Grid lines of the timeline charts (PRD §17). */
+  --grid: #d9dadc;
 
   --green: #47cd54;
   --yellow: #fbbe22;
   --red: #f25454;
   --blue: #2c68fa;
+  /* Layers of the delay stack (PRD §17). */
+  --blue-soft: #7ea2ff;
+  --blue-faint: #c2d3ff;
+
+  /* Darker shades of the colors above for text on light backgrounds (PRD §17). */
+  --green-text: #2f9e3a;
+  --yellow-text: #9a6f00;
+  --red-text: #d93b3b;
+}
+
+/* PRD §17: keyboard focus is a 2 px --blue outline on every interactive element; components may move it. */
+a:focus-visible,
+button:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
 }
 
 body {

@@ -44,5 +44,10 @@ export const translation = {
       label: "Audio codec",
       errorText: "This website doesn't allow testing audio codec",
     },
+    // Frame rate and Freezes & Stalls while no frames are rendered (PRD §14.4).
+    suspended: {
+      hidden: "Tab hidden — the browser does not render frames",
+      paused: "Video paused — no frames to render",
+    },
   },
 };
