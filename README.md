@@ -2,6 +2,10 @@
 
 A Chrome extension that finds the problems of a WebRTC video stream on the receiving side and, for each one, tells what happened, when, how bad it was, the likely cause (network, sender, page or this device) and what to check. Right-click a participant's video → **Test stream**.
 
+**Install:** [StreamTest in the Chrome Web Store](https://chromewebstore.google.com/detail/streamtest/iccaenpebpeacjofjkikdmeejlpeohma).
+
+**How to use it:** [WebRTC Troubleshooter for Chrome: How to Use StreamTest](https://www.forasoft.com/blog/article/streamtest-webrtc-troubleshooter) — step by step, with every problem explained.
+
 - **Compact** (350 px): the status row (`No problems · 2:00`, `Bandwidth drop · now`, `3 problems · last 76s ago`), seven tiles with sparklines, codecs and the connection chip, Mark.
 - **Mini** (190 px): the tiles' values and one status line.
 - **Expanded → Timeline** (900 × 700): the verdict, four charts on one time axis (bitrate, frame rate, packet loss, delay), problem bands, the events band, the problems list and a card per problem.
@@ -11,6 +15,10 @@ Everything is collected and computed in the page; nothing leaves the browser.
 
 ## Install
 
+From the Chrome Web Store: [StreamTest](https://chromewebstore.google.com/detail/streamtest/iccaenpebpeacjofjkikdmeejlpeohma).
+
+From source:
+
 ```bash
 npm run install-all
 ```
@@ -19,7 +27,7 @@ npm run install-all
 npm run build
 ```
 
-Open `chrome://extensions`, turn on Developer mode, **Load unpacked** → the `build/` folder. Chrome 116 or newer; building and tests need Node.js 20 or newer (CI runs 20).
+Open `chrome://extensions`, turn on Developer mode, **Load unpacked** → the `build/` folder. Chrome 116 or newer; building and tests need Node.js 20 or newer.
 
 The extension works on `https://` pages, on the root page of an `http://` site and on `http://localhost` / `http://127.0.0.1` with any path.
 

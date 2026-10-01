@@ -2,6 +2,8 @@
 
 Everything the [developer dashboard](https://chrome.google.com/webstore/devconsole) asks for when StreamTest is published or updated: the package, the images and the texts to paste.
 
+Published: [StreamTest in the Chrome Web Store](https://chromewebstore.google.com/detail/streamtest/iccaenpebpeacjofjkikdmeejlpeohma), item ID `iccaenpebpeacjofjkikdmeejlpeohma`.
+
 ## Files
 
 | File | Dashboard field |
@@ -35,7 +37,7 @@ cd popup/public && for pair in 16:16 32:30 48:46 128:96; do size=${pair%%:*}; ar
 ## Checklist
 
 1. **Account.** Sign in to the dashboard with the company's Google account, accept the developer agreement, pay the one-time registration fee. 2-Step Verification must be on for the account. Contact email: `info@forasoft.com` — the dashboard sends it a confirmation to verify; users see it in the item's contact information. Trader status: **Non-trader** (StreamTest is free); the status can be changed later in the account settings.
-2. **Package.** StreamTest is not in the store yet: *Add new item* → the ZIP.
+2. **Package.** The item exists (ID `iccaenpebpeacjofjkikdmeejlpeohma`): a new version is uploaded to it — see *A later update* below.
 3. **Store listing** — the texts below, the icon, the four screenshots, the promo tile.
 4. **Privacy** — the texts below; the privacy policy published on the site and its URL.
 5. **Distribution** — free, no in-app purchases; visibility Public (or Unlisted to share by link first); all regions.
