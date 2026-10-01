@@ -1,3 +1,4 @@
+// The status row at the top of Compact and Mini: how the session goes, in one line that opens the Report.
 import React from "react";
 import styles from "./StatusRow.module.css";
 import { StatusInfo } from "../../../../shared/protocol";

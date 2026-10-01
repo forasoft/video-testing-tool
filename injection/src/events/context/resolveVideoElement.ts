@@ -1,7 +1,11 @@
-export const isHidden = (element: HTMLElement) =>
+// Which <video> the tester right-clicked (PRD §16 F1).
+
+// A video hidden with `display: none` is not the one under the cursor.
+const isHidden = (element: HTMLElement) =>
   element.style.display === "none";
 
-export const includesPoint = (
+// Whether the point (clientX, clientY) of a mouse event is inside the element's box.
+const includesPoint = (
   element: HTMLElement,
   clientX: number,
   clientY: number
@@ -26,6 +30,7 @@ interface IFindProps {
   elements?: HTMLElement[];
 }
 
+// The first <video> under the point that plays a MediaStream; the children of the elements are searched too.
 export const findVideoRecursively = (
   props: IFindProps
 ): HTMLVideoElement | undefined => {
@@ -35,8 +40,7 @@ export const findVideoRecursively = (
     elements = document.getElementsByTagName("video"),
   } = props;
 
-  for (let i = 0; i != elements.length; ++i) {
-    const currentElement = elements[i];
+  for (const currentElement of elements) {
     if (
       currentElement instanceof HTMLVideoElement
       && includesPoint(currentElement, clientX, clientY)

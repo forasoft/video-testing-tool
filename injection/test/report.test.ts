@@ -221,9 +221,9 @@ describe("distributionRows (PRD §13.3)", () => {
       buffer: bufferOf(3, () => ({ v_bitrate: 800 })), t: 2, freezes: [], suspended: [], firstFrameS: 0.05,
     });
 
-    expect(reportMessage(stats)).toMatchObject({
-      previousRun: null, truncatedFrom: null, distribution: expect.arrayContaining([expect.objectContaining({ metric: "First frame", typical: "0.05 s" })]),
-    });
+    const message = reportMessage(stats);
+    expect(message).toMatchObject({ previousRun: null, truncatedFrom: null });
+    expect(message.distribution.find(({ metric }) => metric === "First frame")?.typical).toBe("0.05 s");
     expect(reportMessage(stats, [{ text: "Previous run on this site: " }]).previousRun).toEqual([{ text: "Previous run on this site: " }]);
   });
 });

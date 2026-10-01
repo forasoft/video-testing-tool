@@ -1,49 +1,23 @@
+// Which of the page's RTCPeerConnections the picked <video> plays.
 import { CustomPeerConnection } from "src/types";
 import { vttInternal } from "./connectionsObserver";
 
-export const findRTCConnectionByTracks = (videoElement: HTMLVideoElement) => {
-  //should return RTCconnection that contains all the tracks from videoElement
-  const srcObject = videoElement.srcObject as MediaStream | null;
-  const tracks = srcObject?.getTracks();
-
-  if (!tracks) {
-    return;
+// The connection that received every track of the video's MediaStream, or null. A received track has the id of
+// the connection's track or, in some browsers, carries it as its label.
+export const findRTCConnectionByTracks = (videoElement: HTMLVideoElement): CustomPeerConnection | null => {
+  const tracks = (videoElement.srcObject as MediaStream | null)?.getTracks();
+  // A stream without tracks (they ended or were removed) has nothing to test, and any connection would match it.
+  if (!tracks?.length) {
+    return null;
   }
 
-  const trackIds = tracks.map((track: MediaStreamTrack) => {
-    return track.id;
+  const connections = (vttInternal ?? []) as CustomPeerConnection[];
+  const found = connections.find((connection) => {
+    if (!connection.tracks) {
+      return false;
+    }
+    const received = new Set(connection.tracks.map((track) => track.id));
+    return tracks.every((track) => received.has(track.id) || received.has(track.label));
   });
-
-  let theConnection: CustomPeerConnection | null = null;
-
-  if (!vttInternal) {
-    return theConnection;
-  }
-
-  for (let j = 0; j < vttInternal.length; j++) {
-    const rtcPeerConnection = vttInternal[j] as CustomPeerConnection;
-
-    let flag = true;
-
-    if (!rtcPeerConnection.tracks) {
-      continue;
-    }
-    const connectionTrackIds = new Set(
-      rtcPeerConnection.tracks.map((track: MediaStreamTrack) => track.id)
-    );
-    for (let i = 0; i < trackIds.length; i++) {
-      if (
-        !connectionTrackIds.has(trackIds[i]) &&
-        !connectionTrackIds.has(tracks[i].label)
-      ) {
-        flag = false;
-        break;
-      }
-    }
-    if (flag === true) {
-      theConnection = rtcPeerConnection;
-      break;
-    }
-  }
-  return theConnection;
+  return found ?? null;
 };

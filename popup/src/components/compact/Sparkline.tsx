@@ -1,3 +1,4 @@
+// The sparklines of the Compact tiles: the last 2 minutes of each metric, sent ready with VTT_SAMPLE.
 import React from "react";
 import styles from "./Sparkline.module.css";
 import { Goodness } from "../../../../shared/protocol";
@@ -13,7 +14,7 @@ interface SparklineProps {
 }
 
 // SVG path of the values on a 0…max scale; every run of values between nulls is a separate line.
-export const sparklinePath = (values: (number | null)[]): string => {
+const sparklinePath = (values: (number | null)[]): string => {
   const max = values.reduce<number>((m, v) => (v !== null && v > m ? v : m), 0);
   const step = values.length > 1 ? WIDTH / (values.length - 1) : 0;
   // Keep the whole stroke inside the box.
@@ -27,8 +28,8 @@ export const sparklinePath = (values: (number | null)[]): string => {
       return;
     }
     const x = (i * step).toFixed(2);
-    const next = values[i + 1];
-    if (!inRun && (next === null || next === undefined)) {
+    const next = i + 1 < values.length ? values[i + 1] : null;
+    if (!inRun && next === null) {
       // A lone point: a dot thanks to the round line cap.
       path += `M${x} ${y(v)}h0.01`;
     } else {

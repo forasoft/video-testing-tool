@@ -1,3 +1,4 @@
+// Icon of the Packet loss tile.
 import React from "react";
 
 export const PacketLossIcon = () => (

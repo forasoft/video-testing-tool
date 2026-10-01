@@ -1,3 +1,4 @@
+// The chip of the session's verdict; its text and color come from verdictChip (verdict.ts).
 import React from "react";
 import styles from "./VerdictRow.module.css";
 import { SessionState, VerdictInfo } from "../../../../shared/protocol";

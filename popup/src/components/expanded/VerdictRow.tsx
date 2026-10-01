@@ -1,3 +1,4 @@
+// The top row of the Timeline: the verdict as a chip and a line of text, then the window controls.
 import React from "react";
 import styles from "./VerdictRow.module.css";
 import { SessionState, VerdictInfo } from "../../../../shared/protocol";

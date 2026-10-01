@@ -1,3 +1,8 @@
+// Content script of the pages StreamTest runs on: adds injection.js to the page and draws the panel around its
+// iframe — the Compact / Mini header, modes and sizes, dragging — and is the page's bridge to chrome.storage.
+
+// Ids of the messages and DOM events shared with the page, the panel and background.js: this file is copied to
+// build/ as is (popup/public), so it keeps its own copy instead of importing shared/.
 const CONST = {
   VTT_HIDE: "VTT_HIDE",
   VTT_WAS_HIDDEN: "VTT_WAS_HIDDEN",
@@ -32,8 +37,11 @@ const MODE_KEY = "ui.mode";
 const LAST_RUN_KEY = `lastRun:${location.origin}`;
 const LAST_RUN_MAX_LENGTH = 4096;
 
+// The mode the panel is sized for now; the start screen forces Compact, MODE_KEY keeps the tester's choice.
 let mode = "compact";
 
+// injection.js goes into the page as a <script>: it has to run in the page's own JS world to wrap the page's
+// RTCPeerConnection, and a content script's world is isolated.
 function inject({ url, id }) {
   const injectJS = document.createElement("script");
   injectJS.setAttribute("charset", "utf-8");
@@ -44,16 +52,21 @@ function inject({ url, id }) {
 }
 inject({ url: "injection.js", id: "video-testing-tool" });
 
+// A layer over the whole window that lets the pointer through to the page (main.css); it takes it only while the
+// panel is dragged.
 const frameContainer = document.createElement("div");
 frameContainer.id = "vttFrameContainer";
 frameContainer.classList.add("VTT_frameContainer");
 frameContainer.classList.add("VTT_displayNone");
 
+// The panel: placed by `top` and `right`, which dragging and fitting it to the window change.
 const frameWrapper = document.createElement("div");
 frameWrapper.style.top = "10px";
 frameWrapper.style.right = "10px";
 frameWrapper.classList.add("VTT_frameWrapper");
 
+// The header of Compact and Mini, outside the iframe: pressing it drags the panel. Expanded hides it and draws its
+// own in the iframe.
 const header = document.createElement("header");
 header.classList.add("VTT_header");
 header.addEventListener("pointerdown", handleDragFrame);
@@ -132,8 +145,12 @@ cross.classList.add("VTT_headerButton");
 // Close is the last button: its tooltip opens to the left, inside the panel.
 const crossTooltip = buttonTooltip("Close", "VTT_buttonTooltipEnd");
 
+// The extension's origin, where the panel is loaded from: chrome-extension://<id> (getURL("") ends with a "/").
+const EXTENSION_ORIGIN = chrome.runtime.getURL("").slice(0, -1);
+
 const frame = document.createElement("iframe");
-frame.src = chrome.runtime.getURL("/index.html");
+// The panel takes messages from this page alone: the page's origin is in the panel's address.
+frame.src = chrome.runtime.getURL("/index.html") + "?page=" + encodeURIComponent(window.origin);
 frame.id = "vttFrame";
 frame.name = "vttFrame";
 // Copy summary writes to the clipboard from the panel, which is another origin than the page (PRD §16 F9).
@@ -157,6 +174,7 @@ frameWrapper.appendChild(frame);
 frameContainer.appendChild(frameWrapper);
 document.body.appendChild(frameContainer);
 
+// Pressing the header drags the panel, unless the press is on one of its buttons.
 function handleDragFrame(e) {
   const path = e.composedPath();
   if (
@@ -181,6 +199,8 @@ function dragBounds() {
   };
 }
 
+// Drags the panel after a pointer pressed at (clientX, clientY) of the page until it is released. Meanwhile the
+// full-window layer takes the pointer: over the iframe the page would get no pointermove.
 function startDrag(clientX, clientY) {
   frameWrapper.style.pointerEvents = "none";
   frameContainer.style.pointerEvents = "auto";
@@ -189,6 +209,7 @@ function startDrag(clientX, clientY) {
   const frameShiftY = parseInt(frameWrapper.style.top);
   const { maxRight, minRight, maxTop } = dragBounds();
 
+  // The panel follows the pointer, within the bounds taken when the drag began.
   function moveFrameHandler(e) {
     let newRight = clientX - e.clientX + frameShiftX;
     let newTop = e.clientY - clientY + frameShiftY;
@@ -209,6 +230,7 @@ function startDrag(clientX, clientY) {
     frameWrapper.style.top = newTop + "px";
   }
 
+  // The drop: the pointer goes back to the page and the panel.
   function removeMoveFrameHandler() {
     frameWrapper.style.pointerEvents = "auto";
     frameContainer.style.pointerEvents = "none";
@@ -223,25 +245,29 @@ function startDrag(clientX, clientY) {
   document.addEventListener("pointerup", removeMoveFrameHandler);
 }
 
+// Download logs: the injection exports the session as JSON. A DOM event, as the page and this script share window.
 function handleClickDownloadButton() {
   const event = new Event(CONST.VTT_DOWNLOAD_BUTTON_CLICK);
   window.dispatchEvent(event);
 }
 
+// Open timeline: Expanded on its Timeline tab.
 function handleClickTimelineButton() {
   setMode("expanded", "timeline");
 }
 
+// Resize switches between Compact and Mini.
 function handleClickResizeButton() {
   setMode(mode === "mini" ? "compact" : "mini");
 }
 
 // Close (PRD §8.2): the same VTT_HIDE as Close in Expanded — hides the panel, and the
-// injection stops the session.
+// injection stops the session. Posted to this page's own window, to its origin alone ("/").
 function handleClickCloseButton() {
-  window.postMessage({ id: CONST.VTT_HIDE }, "*");
+  window.postMessage({ id: CONST.VTT_HIDE }, "/");
 }
 
+// Expanded is 900 × 700; a window narrower than 940 px or lower than 720 px shrinks that side to the window less 20 px.
 function expandedSize() {
   return {
     width: window.innerWidth < EXPANDED_MIN_WINDOW_WIDTH ? window.innerWidth - WINDOW_MARGIN : EXPANDED_WIDTH,
@@ -309,7 +335,7 @@ function applyMode(next, tab) {
   }
 
   const tell = () => {
-    window.frames.vttFrame.postMessage({ id: CONST.VTT_SET_MODE, data: { mode: next, tab } }, "*");
+    frame.contentWindow.postMessage({ id: CONST.VTT_SET_MODE, data: { mode: next, tab } }, EXTENSION_ORIGIN);
   };
   if (growing) {
     setTimeout(tell, TRANSITION_MS);
@@ -331,6 +357,7 @@ function setMode(next, tab) {
   }
 }
 
+// A session started: the panel takes the mode saved last (Expanded opens on Timeline), or Compact if there is none.
 function applySavedMode() {
   const fallback = () => applyMode("compact", "timeline");
   try {
@@ -347,6 +374,8 @@ function applySavedMode() {
   }
 }
 
+// Shows the buttons of a session, or hides them on the start screen. Hidden buttons also lose VTT_headerButton:
+// Close right after one would take its 10 px gap (main.css) instead of margin-left: auto and leave the right edge.
 function setSessionButtons(visible) {
   sessionButtons.forEach((button) => {
     button.classList.toggle("VTT_headerButton", visible);
@@ -354,67 +383,73 @@ function setSessionButtons(visible) {
   });
 }
 
+// Shows a hidden panel, or hides a shown one unless `open`; the panel is told it was hidden (VTT_WAS_HIDDEN) and
+// goes back to its start screen.
 function toggleDisplayFrameContainer(e, open) {
   if (frameContainer.classList.contains("VTT_displayNone")) {
     frameContainer.classList.remove("VTT_displayNone");
   } else if (!open) {
     frameContainer.classList.add("VTT_displayNone");
-    window.frames.vttFrame.postMessage({ id: CONST.VTT_WAS_HIDDEN }, "*");
+    frame.contentWindow.postMessage({ id: CONST.VTT_WAS_HIDDEN }, EXTENSION_ORIGIN);
   }
 }
 
+// Hides the panel unless it is hidden already: Close of this header or of Expanded (VTT_HIDE).
 function hideFrameContainer() {
   if (!frameContainer.classList.contains("VTT_displayNone")) {
     toggleDisplayFrameContainer();
   }
 }
 
-const messageHandlers = {
-  [CONST.VTT_HIDE]: () => {
-    hideFrameContainer();
-  },
-  [CONST.VTT_EXTENSION_BUTTON_CLICK]: () => {
+// Messages this page posts to its own window: Close in this header (VTT_HIDE) and the toolbar button (background.js).
+const pageHandlers = new Map([
+  [CONST.VTT_HIDE, hideFrameContainer],
+  // The toolbar button shows or hides the panel, sized for the start screen.
+  [CONST.VTT_EXTENSION_BUTTON_CLICK, () => {
     toggleDisplayFrameContainer();
     setSessionButtons(false);
     applyMode("compact");
-  },
-  [CONST.VTT_IS_MAIN_SCREEN]: (data) => {
-    if (!data.value) {
-      setSessionButtons(true);
-    } else {
-      // The start screen is drawn at the Compact size; the tester's mode stays saved.
-      setSessionButtons(false);
-      applyMode("compact");
-    }
-  },
-};
+  }],
+]);
 
-// Messages of the panel itself: its content height, a mode it asks for, a drag of its header.
-const frameHandlers = {
-  [CONST.VTT_CONTENT_HEIGHT]: (data) => {
+// Messages of the panel: Close in Expanded, its content height, a mode it asks for, a drag of its header, and whether
+// it shows its start screen.
+const frameHandlers = new Map([
+  [CONST.VTT_HIDE, hideFrameContainer],
+  [CONST.VTT_CONTENT_HEIGHT, (data) => {
     // Expanded has its own height; Mini and Compact are as tall as their content.
     const height = data && data.height;
     if (mode !== "expanded" && height > 0) {
       frame.style.height = height + "px";
     }
-  },
-  [CONST.VTT_SET_MODE]: (data) => {
+  }],
+  [CONST.VTT_SET_MODE, (data) => {
     setMode(data && data.mode, data && data.tab);
-  },
-  [CONST.VTT_DRAG_START]: (data) => {
+  }],
+  [CONST.VTT_DRAG_START, (data) => {
     const rect = frame.getBoundingClientRect();
     startDrag(rect.left + data.clientX, rect.top + data.clientY);
-  },
-};
+  }],
+  [CONST.VTT_IS_MAIN_SCREEN, (data) => {
+    if (data && data.value) {
+      // The start screen is drawn at the Compact size; the tester's mode stays saved.
+      setSessionButtons(false);
+      applyMode("compact");
+    } else {
+      setSessionButtons(true);
+    }
+  }],
+]);
 
+// Messages are taken from the panel's iframe and from this page's own window alone, each from its own origin, so that
+// other frames of the page cannot pose as them. Maps, not objects: an id such as "toString" finds nothing.
 window.addEventListener("message", (e) => {
-  const frameHandler = frameHandlers[e.data?.id];
-  if (frameHandler) {
-    if (e.source === frame.contentWindow) frameHandler(e.data.data);
-    return;
+  const id = e.data?.id;
+  if (e.source === frame.contentWindow && e.origin === EXTENSION_ORIGIN) {
+    frameHandlers.get(id)?.(e.data.data);
+  } else if (e.source === window && e.origin === window.origin) {
+    pageHandlers.get(id)?.();
   }
-  const handler = messageHandlers[e.data?.id];
-  if (handler) handler(e.data);
 });
 
 // The page (injection) and this script share window, not chrome.storage: a session's start is answered with the
@@ -432,6 +467,7 @@ function loadLastRun() {
   }
 }
 
+// The page's summary of a run: stored for this origin if it is JSON of at most LAST_RUN_MAX_LENGTH characters.
 window.addEventListener(CONST.VTT_STORE_LAST_RUN, (e) => {
   const detail = typeof e.detail === "string" ? e.detail : "";
   if (!detail || detail.length > LAST_RUN_MAX_LENGTH) {
@@ -444,6 +480,7 @@ window.addEventListener(CONST.VTT_STORE_LAST_RUN, (e) => {
   }
 });
 
+// A session started on a picked stream: the panel opens in the saved mode, and the page gets the stored last run.
 window.addEventListener(CONST.CONTEXT_MENU_VTT_WAS_CLICKED, () => {
   toggleDisplayFrameContainer(null, true);
   applySavedMode();
@@ -455,6 +492,7 @@ window.addEventListener(CONST.VTT_GO_TO_MAIN_SCREEN, () => {
   toggleDisplayFrameContainer(null, true);
 });
 
+// The styles of the panel's frame, header and tooltips.
 const link = document.createElement("link");
 link.rel = "stylesheet";
 link.href = chrome.runtime.getURL("main.css");

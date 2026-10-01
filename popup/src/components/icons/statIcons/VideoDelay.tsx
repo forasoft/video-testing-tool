@@ -1,3 +1,4 @@
+// Icon of the Video delay tile.
 import React from "react";
 
 export const VideoDelayIcon = () => (

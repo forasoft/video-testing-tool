@@ -1,3 +1,4 @@
+// Icon of the Audio delay tile.
 import React from "react";
 
 export const AudioDelayIcon = () => (

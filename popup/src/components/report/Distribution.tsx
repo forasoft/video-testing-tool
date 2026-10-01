@@ -1,3 +1,4 @@
+// The Distribution card of the Report: the session's typical, bad and worst values against their targets.
 import React from "react";
 import styles from "./Report.module.css";
 import { BUFFER_SECONDS } from "../../../../shared/constants/sampleFields";

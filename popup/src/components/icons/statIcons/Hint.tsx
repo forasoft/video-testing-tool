@@ -1,3 +1,4 @@
+// The ? of a tile's hint.
 import React from "react";
 
 interface HintIconProps {

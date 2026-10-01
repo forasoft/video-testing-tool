@@ -1,17 +1,18 @@
+// The history of the Timeline's window when the samples the popup keeps do not cover it.
 import {
   useCallback, useEffect, useRef, useState
 } from "react";
 import {
-  GetHistoryMessage, HistoryMessage, MESSAGES
+  GetHistoryMessage, HistoryMessage, MESSAGES,
 } from "../../../../../shared/protocol";
-import { postToWindow } from "../../../utils/postToWindow";
+import { onPageMessage, postToWindow } from "../../../utils/page";
 import { TimeWindow } from "./scale";
 import {
   covers, historyRequest, WindowRange
 } from "./window";
 
 // The whole session is asked for again this often while Live (PRD §11.1).
-export const WHOLE_REFRESH_MS = 5000;
+const WHOLE_REFRESH_MS = 5000;
 
 interface Question {
   range: WindowRange;
@@ -49,20 +50,16 @@ export const useHistory = (
     postToWindow(MESSAGES.VTT_GET_HISTORY, question.request);
   }, []);
 
-  useEffect(() => {
-    const callback = (e: MessageEvent) => {
-      if (e.data?.id !== MESSAGES.VTT_HISTORY) {
-        return;
-      }
-      const message = e.data.data as HistoryMessage;
-      const question = asked.current;
-      if (question && question.request.from === message.from && question.request.to === message.to) {
-        setAnswer({ range: question.range, message });
-      }
-    };
-    window.addEventListener("message", callback);
-    return () => window.removeEventListener("message", callback);
-  }, []);
+  useEffect(() => onPageMessage((received) => {
+    if (received.id !== MESSAGES.VTT_HISTORY) {
+      return;
+    }
+    const message = received.data as HistoryMessage;
+    const question = asked.current;
+    if (question?.request.from === message.from && question.request.to === message.to) {
+      setAnswer({ range: question.range, message });
+    }
+  }), []);
 
   // The whole session while Live: now and every 5 s.
   useEffect(() => {
@@ -98,5 +95,5 @@ export const useHistory = (
     ask({ range, request });
   }, [range, live, from, to, kept, now, ask]);
 
-  return answer && answer.range === range && !(range === "last2" && live) ? answer.message : null;
+  return answer?.range === range && !(range === "last2" && live) ? answer.message : null;
 };

@@ -1,3 +1,4 @@
+// The ForaSoft logo of the start screen's footer.
 import React from "react";
 
 export const ForaSoftLogo: React.FC = () => (

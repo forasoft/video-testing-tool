@@ -31,16 +31,19 @@ export interface SenderInfo {
   height: number | null;
 }
 
-export interface UploadLimitedData extends SenderInfo {
+// The sender as last seen while limited, the reason of the start and the encoder's target before it.
+interface UploadLimitedData extends SenderInfo {
   // The reason of the start: it decides a tie between cpu and bandwidth seconds.
   first: Reason;
   // Median out_target of the 30 s before the start, kbps; null without enough history.
   targetBefore: number | null;
 }
 
+// A stats value as a non-empty string / a finite number, else null.
 const text = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
 const count = (value: unknown): number | null => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
+// The encoder of the top layer (else of any layer that names one) and the captured size of the outgoing video.
 export const senderInfo = (snapshot: Snapshot | null): SenderInfo => {
   const layers = snapshot?.outbound ?? [];
   const source = snapshot?.outboundSource;
@@ -56,6 +59,7 @@ const max = (values: number[]) => (values.length ? Math.max(...values) : null);
 // The lower middle value: an existing frame size, not the mean of two.
 const lowerMedian = (values: number[]) => (values.length ? [...values].sort((a, b) => a - b)[Math.floor((values.length - 1) / 2)] : null);
 
+// Detects Your upload limited by CPU / bandwidth: out_limit cpu or bandwidth START_SAMPLES samples in a row.
 export class UploadLimited implements Detector<UploadLimitedData> {
   readonly type = "upload_limited";
   private readonly sender: () => SenderInfo;
@@ -68,6 +72,7 @@ export class UploadLimited implements Detector<UploadLimitedData> {
     this.sender = sender;
   }
 
+  // Opens at the first of the limited samples in a row, closes at the first of the free ones in a row.
   onSample(engine: ProblemEngine): void {
     const { t } = engine;
     const limit = engine.sample?.out_limit ?? null;
@@ -112,6 +117,7 @@ export class UploadLimited implements Detector<UploadLimitedData> {
     }
   }
 
+  // The reason is the one of most limited samples of the problem; a tie keeps the reason of the start.
   describe(problem: Problem<UploadLimitedData>, engine: ProblemEngine): Description {
     const { tStart, tEnd, data } = problem;
     // The samples of the problem: up to now, or up to its end (the first sample that is not limited).

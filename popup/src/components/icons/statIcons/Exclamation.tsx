@@ -1,3 +1,4 @@
+// The red ! of a codec without a value.
 import React from "react";
 
 interface ExclamationIconProps {

@@ -4,6 +4,7 @@ import { RtpStats, Snapshot } from "./extract";
 import { pathGoodness } from "./goodness";
 import { codecName, pathProtocol, pathType } from "./metrics";
 
+// A non-empty string field of a report, else null.
 const text = (value: unknown): string | null =>
   typeof value === "string" && value !== "" ? value : null;
 
@@ -40,13 +41,15 @@ export const connectionTooltip = (local?: RtpStats, remote?: RtpStats): string[]
 
 // "srflx→relay · udp" — both candidate types and the protocol; null without a selected pair.
 export const pathLabel = (connection: ConnectionInfo | null): string | null => {
-  if (!connection || !connection.localType || !connection.remoteType) {
+  if (!connection?.localType || !connection.remoteType) {
     return null;
   }
   const proto = connection.proto ? ` · ${connection.proto}` : "";
   return `${connection.localType}→${connection.remoteType}${proto}`;
 };
 
+// The connection chip of a sample: codecs, the selected pair's candidate types and protocol, the RTT (ms) and the
+// tooltip; the path is graded only when its type is known.
 export const connectionInfo = (
   { local, remote, videoCodec, audioCodec }: Snapshot,
   rttMs: number | null

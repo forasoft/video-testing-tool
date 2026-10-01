@@ -1,11 +1,13 @@
+// How the panel is displayed: the mode main.js gives it, the tab of Expanded, and whether the start screen is shown
+// instead of a session.
 import React, {
   FC, ReactElement, useCallback, useEffect, useMemo, useState
 } from "react";
 import { CONST } from "../CONST/const";
 import {
-  ExpandedTab, MESSAGES, PanelMode, SetModeMessage
+  ExpandedTab, MESSAGES, PanelMode, SetModeMessage,
 } from "../../../shared/protocol";
-import { postToWindow } from "../utils/postToWindow";
+import { onPageMessage, postToWindow } from "../utils/page";
 
 interface IState {
   // Set by main.js (PRD §8.1): it sizes the panel, the popup draws the layout of the mode.
@@ -25,37 +27,31 @@ interface ContextValue {
 }
 
 interface IProps {
-  state?: IState;
   children: ReactElement | ReactElement[];
 }
 
+// Compact, with Timeline as the tab of Expanded, until main.js says otherwise.
+const INITIAL_STATE: IState = { mode: "compact", tab: "timeline" };
+
+// Read by the layout to pick the screen, and by the controls that switch the mode or the tab.
 export const DisplayContext = React.createContext({} as ContextValue);
 
-export const DisplayContextProvider: FC<IProps> = ({
-  state: defaultState = { mode: "compact", tab: "timeline" },
-  children,
-}) => {
-  const [state, setState] = useState(defaultState);
+// The mode changes only when main.js sends it (VTT_SET_MODE): main.js sizes the panel and tells the popup when to draw
+// the mode's layout.
+export const DisplayContextProvider: FC<IProps> = ({ children }) => {
+  const [state, setState] = useState(INITIAL_STATE);
   const [mainScreen, setMainScreen] = useState(true);
 
-  useEffect(() => {
-    const callback = (e: MessageEvent) => {
-      if (e.data?.id === MESSAGES.VTT_SET_MODE) {
-        const { mode, tab } = e.data.data as SetModeMessage;
-        setState((prevState) => ({ mode, tab: tab ?? prevState.tab }));
-      }
-      // A new session opens Expanded on Timeline again.
-      if (e.data?.id === CONST.CONTEXT_MENU_VTT_WAS_CLICKED) {
-        setState((prevState) => ({ ...prevState, tab: "timeline" }));
-      }
-    };
-
-    window.addEventListener("message", callback);
-
-    return () => {
-      window.removeEventListener("message", callback);
-    };
-  }, []);
+  useEffect(() => onPageMessage((message) => {
+    if (message.id === MESSAGES.VTT_SET_MODE) {
+      const { mode, tab } = message.data as SetModeMessage;
+      setState((prevState) => ({ mode, tab: tab ?? prevState.tab }));
+    }
+    // A new session opens Expanded on Timeline again.
+    if (message.id === CONST.CONTEXT_MENU_VTT_WAS_CLICKED) {
+      setState((prevState) => ({ ...prevState, tab: "timeline" }));
+    }
+  }), []);
 
   const setMode = useCallback((mode: PanelMode, tab?: ExpandedTab) => {
     const message: SetModeMessage = tab ? { mode, tab } : { mode };

@@ -3,7 +3,7 @@ import { SampleValues } from "shared/constants/sampleFields";
 import { EventMessage, ProblemMessage } from "shared/protocol";
 import { emptySample } from "src/session/metrics";
 import {
-  cursorLines, eventNames, nearestRow, problemNames, rowSpan
+  cursorLines, nearestRow, rowSpan, tooltipLines
 } from "../../popup/src/components/expanded/timeline/tooltip";
 
 const sample = (t: number, values: Partial<SampleValues> = {}): SampleValues => ({ ...emptySample(), t, ...values });
@@ -63,9 +63,29 @@ describe("timeline cursor", () => {
     }) as ProblemMessage;
     const problems = [problem(1, "Bandwidth drop", 5, 9.5), problem(2, "Video freeze", 8, 9), problem(3, "Reconnection", 9.8, null)];
 
-    expect(eventNames(events, [9, 10])).toEqual(["Tab hidden", "Mark 1"]);
+    // The lines after the four metrics: the events of the second, then the problems going on in it.
+    const names = (span: [number, number], now: number) => tooltipLines(sample(span[1]), events, problems, span, now)
+      .slice(4).map((line) => line.text);
+
+    expect(names([9, 10], 12)).toEqual(["Tab hidden", "Mark 1", "Bandwidth drop", "Reconnection"]);
     // Going on until now (12 s).
-    expect(problemNames(problems, [9, 10], 12)).toEqual(["Bandwidth drop", "Reconnection"]);
-    expect(problemNames(problems, [11, 12], 12)).toEqual(["Reconnection"]);
+    expect(names([11, 12], 12)).toEqual(["Reconnection"]);
+  });
+
+  it("keys the tooltip's lines by their subject: the metric, the event's number, the problem's id", () => {
+    const events: EventMessage[] = [
+      { n: 4, t: 10, kind: "mark", label: "Mark 1", tone: "blue" },
+      { n: 5, t: 10, kind: "mark", label: "Mark 1", tone: "blue" },
+    ];
+    const problems = [{
+      id: 7, title: "Video freeze", tStart: 9.5, tEnd: null,
+    } as ProblemMessage];
+
+    const lines = tooltipLines(sample(10, { v_bitrate: 900 }), events, problems, [9, 10], 12);
+
+    expect(lines.map((line) => line.key)).toEqual(["bitrate", "fps", "loss", "delay", "event-4", "event-5", "problem-7"]);
+    // Two events of a second can have the same name, the keys still differ.
+    expect(lines.map((line) => line.text).slice(4)).toEqual(["Mark 1", "Mark 1", "Video freeze"]);
+    expect(lines[0].text).toBe("Bitrate 900 kbps");
   });
 });

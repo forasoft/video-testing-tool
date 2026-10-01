@@ -34,7 +34,7 @@ describe("stream start timing (Slow start)", () => {
     watchTiming(pc as unknown as RTCPeerConnection);
 
     now = 300;
-    await pc.setRemoteDescription({ type: "offer", sdp: "v=0" } as RTCSessionDescriptionInit);
+    await pc.setRemoteDescription({ type: "offer", sdp: "v=0" });
     expect(original).toHaveBeenCalledWith({ type: "offer", sdp: "v=0" });
 
     // The track event comes while the description is being set; the remote track is muted until its first packet.

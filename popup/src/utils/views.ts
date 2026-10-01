@@ -7,6 +7,7 @@ import {
   formatFps, formatKbps, formatMs, formatPct, formatResolution
 } from "./format";
 
+// What a tile or a timeline label shows: the text (null — no data) and the goodness that colors it.
 export interface MetricView {
   value: string | null;
   goodness?: Goodness;
@@ -40,18 +41,22 @@ export const fpsView = (source: ViewSource): MetricView => {
     : { value: show(sample?.values.v_fps_r, formatFps), goodness: sample?.goodness.fps };
 };
 
+// d_video, ms: half the RTT, the jitter buffer, decode and render together.
 export const videoDelayView = ({ sample }: ViewSource): MetricView => (
   { value: show(sample?.values.d_video, formatMs), goodness: sample?.goodness.videoDelay }
 );
 
+// d_audio, ms: half the RTT and the audio jitter buffer.
 export const audioDelayView = ({ sample }: ViewSource): MetricView => (
   { value: show(sample?.values.d_audio, formatMs), goodness: sample?.goodness.audioDelay }
 );
 
+// v_loss: the share of the video's packets lost over the last 5 s, %.
 export const lossView = ({ sample }: ViewSource): MetricView => (
   { value: show(sample?.values.v_loss, formatPct), goodness: sample?.goodness.loss }
 );
 
+// The video element's frame size; no value until both its width and height are known.
 export const resolutionView = ({ sample }: ViewSource): MetricView => {
   const width = sample?.values.v_w;
   const height = sample?.values.v_h;
@@ -61,6 +66,7 @@ export const resolutionView = ({ sample }: ViewSource): MetricView => {
   };
 };
 
+// v_freeze_pct: the frozen time of the whole session, % of it; `—` while frames are not counted, as Frame rate.
 export const freezesView = (source: ViewSource): MetricView => {
   const { sample } = source;
   const suspended = suspendedNow(source);
@@ -69,6 +75,7 @@ export const freezesView = (source: ViewSource): MetricView => {
     : { value: show(sample?.values.v_freeze_pct, formatPct), goodness: sample?.goodness.freezes };
 };
 
+// v_bitrate: the received video's bitrate, kbps.
 export const bitrateView = ({ sample }: ViewSource): MetricView => (
   { value: show(sample?.values.v_bitrate, formatKbps), goodness: sample?.goodness.bitrate }
 );

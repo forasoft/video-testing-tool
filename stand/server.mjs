@@ -35,6 +35,7 @@ const MIME = {
 
 const log = (line) => console.log(`[stand] ${line}`);
 
+// Both shapers forward to coturn: the page points the call at SHAPER_PORT and the 2nd stream at SHAPER2_PORT.
 const shaper = createShapingProxy({
   listenPort: SHAPER_PORT,
   targetHost: TURN_HOST,
@@ -48,35 +49,37 @@ const shaper2 = createShapingProxy({
   log,
 });
 
+// The stand's API by "METHOD path": the network presets of the call's and the 2nd stream's shapers, and TURN.
+const API = new Map([
+  ["GET /api/net", (req, res) => json(res, 200, shaper.state())],
+  ["POST /api/net", async (req, res) => {
+    const state = shaper.set(await readJson(req));
+    log(`network: ${describe(state.params)}`);
+    return json(res, 200, state);
+  }],
+  ["GET /api/net/second", (req, res) => json(res, 200, shaper2.state())],
+  ["POST /api/net/second", async (req, res) => {
+    const state = shaper2.set(await readJson(req));
+    log(`network of the 2nd stream: ${describe(state.params)}`);
+    return json(res, 200, state);
+  }],
+  ["POST /api/net/clear", (req, res) => {
+    log("network: clean");
+    shaper2.clear();
+    return json(res, 200, shaper.clear());
+  }],
+  ["GET /api/turn", async (req, res) => json(res, 200, {
+    up: await isTurnUp(), host: TURN_HOST, port: TURN_PORT, shaperPort: SHAPER_PORT, shaper2Port: SHAPER2_PORT,
+  })],
+]);
+
+// The API first, then the files of public/, which only GET and HEAD may ask for.
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
-
-    if (url.pathname === "/api/net" && req.method === "GET") {
-      return json(res, 200, shaper.state());
-    }
-    if (url.pathname === "/api/net" && req.method === "POST") {
-      const state = shaper.set(await readJson(req));
-      log(`network: ${describe(state.params)}`);
-      return json(res, 200, state);
-    }
-    if (url.pathname === "/api/net/second" && req.method === "GET") {
-      return json(res, 200, shaper2.state());
-    }
-    if (url.pathname === "/api/net/second" && req.method === "POST") {
-      const state = shaper2.set(await readJson(req));
-      log(`network of the 2nd stream: ${describe(state.params)}`);
-      return json(res, 200, state);
-    }
-    if (url.pathname === "/api/net/clear" && req.method === "POST") {
-      log("network: clean");
-      shaper2.clear();
-      return json(res, 200, shaper.clear());
-    }
-    if (url.pathname === "/api/turn" && req.method === "GET") {
-      return json(res, 200, {
-        up: await isTurnUp(), host: TURN_HOST, port: TURN_PORT, shaperPort: SHAPER_PORT, shaper2Port: SHAPER2_PORT,
-      });
+    const handle = API.get(`${req.method} ${url.pathname}`);
+    if (handle) {
+      return await handle(req, res);
     }
     if (req.method !== "GET" && req.method !== "HEAD") {
       return json(res, 405, { error: "method not allowed" });
@@ -87,6 +90,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// A file of public/, never one outside it; not cached, so an edited stand page is picked up on reload.
 function serveStatic(pathname, res) {
   const relative = pathname === "/" ? "index.html" : decodeURIComponent(pathname).replace(/^\/+/, "");
   const file = path.resolve(publicDir, relative);
@@ -101,11 +105,13 @@ function serveStatic(pathname, res) {
   fs.createReadStream(file).pipe(res);
 }
 
+// A JSON answer, not cached: the shapers' state changes between requests.
 function json(res, status, body) {
   res.writeHead(status, { "content-type": MIME[".json"], "cache-control": "no-store" });
   res.end(JSON.stringify(body));
 }
 
+// The request's JSON body, {} if it is empty; a body over 10 000 characters or one that is not JSON is rejected.
 function readJson(req) {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -124,6 +130,7 @@ function readJson(req) {
   });
 }
 
+// A shaper's preset for the log: `loss 5%, delay 80±60 ms`, `blackout` or `clean`.
 function describe(p) {
   if (p.blackout) return "blackout";
   const parts = [];
@@ -154,6 +161,7 @@ function isTurnUp(timeoutMs = 700) {
   });
 }
 
+// The shapers' ports must be free: the TURN udp route goes through them, so without them the stand does not start.
 for (const [proxy, port] of [[shaper, SHAPER_PORT], [shaper2, SHAPER2_PORT]]) {
   try {
     await proxy.listen();
@@ -174,6 +182,7 @@ server.listen(STAND_PORT, "127.0.0.1", async () => {
   log((await isTurnUp()) ? "TURN is running" : "TURN is not running — start it with `npm run stand:turn` for TURN routes and network presets");
 });
 
+// Ctrl+C or a stop of the process: the shapers' sockets close, then the server.
 const shutdown = () => {
   shaper.close();
   shaper2.close();

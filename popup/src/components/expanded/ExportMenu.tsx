@@ -1,3 +1,4 @@
+// The export menu of the Expanded header; the Report and the start screen have plain buttons (ExportButton).
 import React, {
   useEffect, useRef, useState
 } from "react";

@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import { expect, test } from "@playwright/test";
 
+// A check for the table of e2e:repeat, with its test, repeat and retry; a plain `npm run e2e` keeps nothing.
 export const recordCheck = (name, ok, detail) => {
   const file = process.env.E2E_CHECKS_FILE;
   if (file) {

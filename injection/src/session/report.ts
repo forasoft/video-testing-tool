@@ -50,7 +50,8 @@ export const sessionVerdict = (problems: ProblemMessage[], t: number): VerdictIn
 
 // ---- Distribution (PRD §13.3)
 
-export interface Interval {
+// A stretch of the session, seconds from its start.
+interface Interval {
   start: number;
   end: number;
 }
@@ -69,18 +70,20 @@ export interface DistributionSource {
 }
 
 // Low values are bad for Bitrate and Frame rate: p5 and the minimum; high ones for the rest: p95 and the maximum.
-export interface LowStats {
+interface LowStats {
   p50: number | null;
   p5: number | null;
   min: number | null;
 }
 
-export interface HighStats {
+// High values are bad for Packet loss, Video delay and RTT: p95 and the maximum.
+interface HighStats {
   p50: number | null;
   p95: number | null;
   max: number | null;
 }
 
+// The statistics of the Distribution table's metrics, by sample field.
 export interface Distribution {
   v_bitrate: LowStats;
   v_fps_r: LowStats;
@@ -89,6 +92,7 @@ export interface Distribution {
   rtt: HighStats;
 }
 
+// The rVFC freezes of the kept time: count, total and longest, s, and their share of the counted time, %.
 export interface FreezeStats {
   count: number;
   totalS: number;
@@ -97,12 +101,14 @@ export interface FreezeStats {
   pct: number | null;
 }
 
+// The Report's numbers as of t; the run summary (lastRun.ts) and the JSON export are made from them too.
 export interface ReportStats {
   distribution: Distribution;
   freezes: FreezeStats;
   firstFrameS: number | null;
   // p50 of the frame height: the bitrate target depends on it.
   heightP50: number | null;
+  // t of the oldest kept sample once older ones were dropped, else null.
   truncatedFrom: number | null;
 }
 
@@ -165,6 +171,7 @@ export const reportStats = ({
 
 const DASH = "—";
 
+// A value in its format, `—` without one.
 const show = (value: number | null, format: (v: number) => string): string => (value === null ? DASH : format(value));
 
 // The formats of the tiles (PRD §7) without units: the unit is in the metric's name.
@@ -172,6 +179,7 @@ const whole = (v: number) => groupThousands(v);
 const tenths = (v: number) => v.toFixed(1);
 const hundredths = (v: number) => v.toFixed(2);
 
+// The goodness of a row's value; none without a value.
 const graded = (value: number | null, goodness: (v: number) => Goodness): { goodness?: Goodness } => (
   value === null ? {} : { goodness: goodness(value) }
 );
@@ -243,7 +251,8 @@ export const reportMessage = (stats: ReportStats, previousRun: PreviousRunPart[]
 
 // ---- Copy summary (PRD §15.3)
 
-export interface SummarySource {
+// What Copy summary is made from.
+interface SummarySource {
   hostname: string;
   // The session's start, ms since the epoch.
   startedAt: number;

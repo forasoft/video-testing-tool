@@ -1,3 +1,4 @@
+// The Events row of the Timeline: a numbered circle per event, with a tip of what happened.
 import React, {
   useEffect, useRef, useState
 } from "react";

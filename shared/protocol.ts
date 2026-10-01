@@ -1,8 +1,8 @@
-// Messages between injection (page) and popup (iframe), PRD §21 (Appendix B).
-// Sent with window.postMessage as { id, data }. Types of messages that later tasks
-// implement are declared here already; optional fields appear with their tasks.
+// Messages between injection (page) and popup (iframe), PRD §21 (Appendix B): window.postMessage of { id, data },
+// addressed to the other side's origin and taken only from the other side's window and origin.
 import { SampleValues } from "./constants/sampleFields";
 
+// The ids of the messages, grouped by who sends them to whom.
 export const MESSAGES = {
   // injection → popup
   // The messages of one sample in one envelope, in order (PRD §18): the panel draws them in one render.
@@ -31,17 +31,29 @@ export const MESSAGES = {
   VTT_PERF: "VTT_PERF",
 } as const;
 
-export type MessageId = typeof MESSAGES[keyof typeof MESSAGES];
-
 // A message as window.postMessage carries it; VTT_BATCH carries a list of them.
 export interface PanelMessage {
   id: string;
   data: unknown;
 }
 
+// The `id` of a StreamTest message that a `message` event carries; undefined for anything else the page or other
+// scripts post to the window.
+export const messageId = (event: MessageEvent<unknown>): string | undefined => {
+  const { data } = event;
+  return typeof data === "object" && data !== null && "id" in data && typeof data.id === "string" ? data.id : undefined;
+};
+
+// The StreamTest message of a `message` event, or null. Its `data` is checked by the receiver: each id has its type.
+export const panelMessage = (event: MessageEvent<unknown>): PanelMessage | null => {
+  const id = messageId(event);
+  return id === undefined ? null : { id, data: (event.data as { data?: unknown }).data };
+};
+
 // PRD §7: good — green, moderate — yellow, bad — red.
 export type Goodness = "good" | "moderate" | "bad";
 
+// The metrics graded good / moderate / bad (PRD §7).
 export type GoodnessKey =
   | "fps"
   | "bitrate"
@@ -66,14 +78,20 @@ export type SparklineKey = "fps" | "videoDelay" | "audioDelay" | "loss" | "resol
 // session is shorter than 120 s.
 export type Sparklines = Record<SparklineKey, (number | null)[]>;
 
+// idle — no session yet; live — collecting; disconnected — the stream was lost; stopped — ended by the tester.
 export type SessionState = "idle" | "live" | "disconnected" | "stopped";
 
+// Where a problem comes from: Network — between this browser and the sender; Sender — the sender or the SFU;
+// Page — the site's JavaScript; Device — this computer (decoder, rendering).
 export type ProblemCategory = "Network" | "Sender" | "Page" | "Device";
 
+// warn — yellow, severe — red.
 export type Severity = "warn" | "severe";
 
+// OK without problems; Severe with at least one severe problem; Degraded otherwise.
 export type VerdictLevel = "OK" | "Degraded" | "Severe";
 
+// The panel's layout: Mini and Compact show the tiles, Expanded the Timeline and the Report.
 export type PanelMode = "mini" | "compact" | "expanded";
 
 // Why the selected video renders no frames now: the tab is hidden or the video is paused (PRD §14.4).
@@ -85,6 +103,7 @@ export type ExpandedTab = "timeline" | "report";
 
 // ---- injection → popup
 
+// VTT_SESSION, injection → popup: when a session starts and whenever its state changes.
 export interface SessionMessage {
   state: SessionState;
   startedAt: number;
@@ -113,6 +132,7 @@ export interface ConnectionInfo {
   goodness?: Goodness;
 }
 
+// The verdict so far: its level, the seconds with a problem and the id of the worst problem (null without one).
 export interface VerdictInfo {
   level: VerdictLevel;
   degradedS: number;
@@ -133,8 +153,9 @@ export interface StatusInfo {
   severity?: Severity;
 }
 
-// Once a second. When the session ends, the last message is sent again with the final
-// verdict and status: the same t, so it is not a new second of data.
+// VTT_SAMPLE, injection → popup.
+// Once a second. When the stream is lost (disconnected), the last message is sent again with the
+// final verdict and status: the same t, so it is not a new second of data.
 export interface SampleMessage {
   // Seconds from the session start.
   t: number;
@@ -148,6 +169,7 @@ export interface SampleMessage {
   suspended?: SuspendReason;
 }
 
+// VTT_FPS, injection → popup: Frame rate four times a second, apart from the sample.
 export interface FpsMessage {
   fps: number;
   goodness: Goodness;
@@ -168,6 +190,7 @@ export type EventKind =
 // Color of the event's circle: layer_change is yellow down and green up, so it is not fixed by kind.
 export type EventTone = "green" | "yellow" | "gray" | "blue";
 
+// VTT_EVENT, injection → popup: one event, when it happens; VTT_HISTORY carries them too.
 export interface EventMessage {
   // Numbered through the session from 1.
   n: number;
@@ -178,7 +201,8 @@ export interface EventMessage {
   tone: EventTone;
 }
 
-export interface ProblemSeries {
+// The chart of a problem card: a sample field around the problem, or Page jank's long tasks as bars.
+interface ProblemSeries {
   // Sample field (PRD §6.3), or `longtask` — the page's long tasks.
   name: string;
   // [t, value], the problem ± 15 s. For bars: [start of the task, its duration in ms].
@@ -187,6 +211,7 @@ export interface ProblemSeries {
   kind?: "bars";
 }
 
+// The card of a problem (PRD §12.4): its chart, rows of facts, the likely cause and what to check.
 export interface ProblemCard {
   series: ProblemSeries;
   // A dashed second series (Bandwidth drop: avail_in), only when the browser reports it.
@@ -196,6 +221,7 @@ export interface ProblemCard {
   check: string;
 }
 
+// VTT_PROBLEM, injection → popup: a problem once it has lasted 1 s, and again whenever its message changes.
 export interface ProblemMessage {
   id: number;
   type: string;
@@ -229,9 +255,11 @@ export interface StreamRow {
   tooltip: string;
 }
 
+// VTT_STREAMS, injection → popup.
 // Every 5 s: the selected stream and the others, by number; empty when the page receives no other video.
 export type StreamsMessage = StreamRow[];
 
+// VTT_HISTORY, injection → popup: the answer to VTT_GET_HISTORY; a refresh's answer has no events and problems.
 export interface HistoryMessage {
   from: number;
   to: number;
@@ -262,6 +290,7 @@ export interface PreviousRunPart {
   change?: "better" | "worse";
 }
 
+// VTT_REPORT, injection → popup: the answer to VTT_GET_REPORT.
 // What the Report shows besides the sample and the problems, every 5 s while it is open (PRD §6.2).
 export interface ReportMessage {
   distribution: DistributionRow[];
@@ -271,16 +300,19 @@ export interface ReportMessage {
   truncatedFrom: number | null;
 }
 
+// VTT_EXPORT_READY, injection → popup: the page is downloading the file; `url` is revoked a moment later.
 export interface ExportReadyMessage {
   format: "json" | "csv";
   url: string;
   filename: string;
 }
 
+// VTT_SUMMARY_TEXT, injection → popup: the answer to VTT_COPY_SUMMARY, the text to put on the clipboard.
 export interface SummaryTextMessage {
   text: string;
 }
 
+// VTT_GET_PERF, injection → popup.
 // __vtt.debug.perf() (PRD §18): the panel's renders and redraws over the last `windowS` seconds.
 export interface GetPerfMessage {
   windowS: number;
@@ -288,6 +320,7 @@ export interface GetPerfMessage {
 
 // ---- popup → injection
 
+// VTT_SET_MODE, popup ↔ main.js; the injection does not use it.
 // The popup asks main.js for a mode; main.js applies it and sends it back to the popup.
 // `tab` — the Expanded tab to open (status row → Report, connection chip → Timeline).
 export interface SetModeMessage {
@@ -295,10 +328,12 @@ export interface SetModeMessage {
   tab?: ExpandedTab;
 }
 
+// VTT_EXPORT, popup → injection: download the session in this format; answered with VTT_EXPORT_READY.
 export interface ExportMessage {
   format: "json" | "csv";
 }
 
+// VTT_GET_HISTORY, popup → injection: the samples with from ≤ t ≤ to, s, averaged into at most `buckets` points.
 export interface GetHistoryMessage {
   from: number;
   to: number;
@@ -308,11 +343,13 @@ export interface GetHistoryMessage {
   refresh?: boolean;
 }
 
+// VTT_GET_REPORT, popup → injection: answered with VTT_REPORT.
 export interface GetReportMessage {
   // The Report's refresh every 5 s, answered as a history refresh is.
   refresh?: boolean;
 }
 
+// VTT_PERF, popup → injection.
 // The answer to VTT_GET_PERF: the view the panel shows — tiles (Compact, Mini), timeline or report, null on the start
 // screen — its renders per second and those of Frame rate (VTT_FPS), and the time of its redraws, ms (mean, p95 and
 // max; null without redraws in the window).

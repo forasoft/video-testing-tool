@@ -30,6 +30,7 @@ export class TimedValues {
   private next = 0;
   private count = 0;
 
+  // Overwrites the oldest measurement once KEPT are stored.
   add(value: number, now = performance.now()): void {
     this.times[this.next] = now;
     this.values[this.next] = value;
@@ -52,6 +53,7 @@ export class TimedValues {
 
 const round3 = (ms: number) => Math.round(ms * 1000) / 1000;
 
+// Mean, p95 and max of a set of timings, ms.
 export interface Timing {
   mean: number;
   p95: number;
@@ -86,6 +88,7 @@ export const connectionId = (peer: RTCPeerConnection): number => {
   return id;
 };
 
+// The page's measurements for __vtt.debug.perf(), each kept with its time.
 export const perf = {
   // The connection's number of every getStats() call.
   statsCalls: new TimedValues(),
@@ -114,27 +117,26 @@ export const statsRates = (selected: RTCPeerConnection | null, windowS: number, 
   };
 };
 
-let panelAnswer: ((message: PanelPerfMessage) => void) | null = null;
+// The askPanel() calls that wait for VTT_PERF: the panel's answer resolves all of them.
+const waiting = new Set<(message: PanelPerfMessage | null) => void>();
 
-// The panel's renders and redraws over the window; null when it does not answer (no panel on the page).
+// The panel's renders and redraws over the window; null when it does not answer in time (no panel on the page).
 export const askPanel = (windowS: number): Promise<PanelPerfMessage | null> => new Promise((resolve) => {
-  const timer = setTimeout(() => {
-    panelAnswer = null;
-    resolve(null);
-  }, PANEL_TIMEOUT_MS);
-  panelAnswer = (message) => {
+  const answer = (message: PanelPerfMessage | null) => {
     clearTimeout(timer);
-    panelAnswer = null;
+    waiting.delete(answer);
     resolve(message);
   };
-  try {
-    postToPopup(MESSAGES.VTT_GET_PERF, { windowS });
-  } catch {
-    // No panel on the page: the timer answers.
-  }
+  const timer = setTimeout(() => {
+    answer(null);
+  }, PANEL_TIMEOUT_MS);
+  waiting.add(answer);
+  postToPopup(MESSAGES.VTT_GET_PERF, { windowS });
 });
 
 // VTT_PERF of the panel.
 export const panelAnswered = (message: PanelPerfMessage): void => {
-  panelAnswer?.(message);
+  waiting.forEach((answer) => {
+    answer(message);
+  });
 };

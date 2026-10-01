@@ -1,3 +1,4 @@
+// The context menu item Test stream: which video and connection it picks, and the session it starts on them.
 import { CustomPeerConnection } from "src/types";
 import addBackgroundMessageHandler from "src/utils/events/background";
 import { findRTCConnectionByTracks } from "src/utils/findRTCConnectionByTracks";
@@ -15,13 +16,16 @@ const showStartError = (error: string) => {
   window.dispatchEvent(new Event(CONSTS.VTT_GO_TO_MAIN_SCREEN));
 };
 
+// Starts a session on the video the tester right-clicked when the context menu item (or the stand's Test this
+// stream) is used; a click that finds no stream shows the reason on the start screen (PRD §14.2).
 const registerContextEvents = () => {
-  // Where the page was right-clicked last: the video under it is the one to test (PRD §16 F1).
-  let lastRightClickEvent: MouseEvent;
+  // Where the page was right-clicked last: the video under it is the one to test (PRD §16 F1). A capturing listener
+  // sees the click before the page's own handlers and leaves `window.oncontextmenu` to the page.
+  let lastRightClickEvent: MouseEvent | null = null;
 
-  window.oncontextmenu = (e) => {
+  window.addEventListener("contextmenu", (e) => {
     lastRightClickEvent = e;
-  };
+  }, true);
 
   // The stream is picked: a new session starts on it.
   const begin = (videoElement: HTMLVideoElement, desiredRtcPeerConnection: CustomPeerConnection, firstReport: RTCStatsReport) => {
@@ -36,7 +40,7 @@ const registerContextEvents = () => {
     const tracksOnVideoElement: MediaStreamTrack[] = (
       videoElement.srcObject as MediaStream
     ).getTracks();
-    const tracksInPeerConnection = desiredRtcPeerConnection.tracks;
+    const tracksInPeerConnection = desiredRtcPeerConnection.tracks ?? [];
     const tracks = tracksOnVideoElement.map(
       (trackInVideoElement) =>
         tracksInPeerConnection.find(
@@ -62,9 +66,9 @@ const registerContextEvents = () => {
   addBackgroundMessageHandler({
     eventId: CONSTS.VTT_CONTEXT_BTN_CLICK,
     handler: () => {
-      const { clientX, clientY } = lastRightClickEvent;
-
-      const videoElement = findVideoRecursively({ clientX, clientY });
+      const videoElement = lastRightClickEvent
+        ? findVideoRecursively({ clientX: lastRightClickEvent.clientX, clientY: lastRightClickEvent.clientY })
+        : undefined;
 
       // The start screen with the error: main.js sizes the panel for it (VTT_IS_MAIN_SCREEN).
       if (!videoElement) {

@@ -4,9 +4,11 @@
 // second, and a full hour must not make that slower (PRD §18).
 import { BUFFER_SECONDS, SAMPLE_FIELDS, SampleField, SampleValues } from "shared/constants/sampleFields";
 
+// Samples the ring keeps, one a second: 60 minutes.
 export { BUFFER_SECONDS };
 
-export interface Buckets {
+// What downsample() returns: one entry per bucket in each array; null for a bucket without values.
+interface Buckets {
   // Start time of each bucket, seconds.
   t: number[];
   min: (number | null)[];
@@ -14,6 +16,7 @@ export interface Buckets {
   mean: (number | null)[];
 }
 
+// A stored number back to a sample value: NaN is how null is kept.
 const toValue = (x: number): number | null => (Number.isNaN(x) ? null : x);
 
 // p-th percentile (0…100) of the values, linear between the closest ranks; null without values.
@@ -28,6 +31,7 @@ export const percentileOf = (values: number[], p: number): number | null => {
   return sorted[low] + (sorted[high] - sorted[low]) * (rank - low);
 };
 
+// The ring: a column per sample field, written in turn; reads count the kept samples from the oldest (i = 0).
 export class SampleBuffer {
   readonly capacity: number;
   readonly columns: Record<SampleField, Float64Array>;
@@ -43,11 +47,12 @@ export class SampleBuffer {
     });
   }
 
+  // Appends a sample, over the oldest one once the ring is full; null is stored as NaN.
   push(sample: SampleValues): void {
     const slot = this.total % this.capacity;
     SAMPLE_FIELDS.forEach((field) => {
       const value = sample[field];
-      this.columns[field][slot] = value === null ? NaN : value;
+      this.columns[field][slot] = value ?? NaN;
     });
     this.total += 1;
     this.size = Math.min(this.size + 1, this.capacity);
@@ -58,6 +63,7 @@ export class SampleBuffer {
     return (this.total - this.size + i) % this.capacity;
   }
 
+  // The field's value in the i-th kept sample, 0 = the oldest; null for no data.
   at(field: SampleField, i: number): number | null {
     return toValue(this.columns[field][this.slot(i)]);
   }
@@ -107,10 +113,10 @@ export class SampleBuffer {
   downsample(field: SampleField, from: number, to: number, buckets: number): Buckets {
     const width = (to - from) / buckets;
     const result: Buckets = { t: [], min: [], max: [], mean: [] };
-    const sums = new Array(buckets).fill(0);
-    const counts = new Array(buckets).fill(0);
-    const mins = new Array(buckets).fill(Infinity);
-    const maxs = new Array(buckets).fill(-Infinity);
+    const sums = new Array<number>(buckets).fill(0);
+    const counts = new Array<number>(buckets).fill(0);
+    const mins = new Array<number>(buckets).fill(Infinity);
+    const maxs = new Array<number>(buckets).fill(-Infinity);
 
     for (let i = 0; i < this.size; i++) {
       const slot = this.slot(i);

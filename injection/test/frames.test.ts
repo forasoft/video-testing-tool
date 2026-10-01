@@ -79,6 +79,22 @@ describe("FrameClock", () => {
     expect(clock.freezes(last)).toEqual([{ start: settled, end: settled + 1500 }]);
   });
 
+  it("counts a stall that goes on after the tab returns, from the end of the guard", () => {
+    const clock = new FrameClock();
+    const before = play(clock, 0, 3000);
+    clock.suspend("hidden", before + 10);
+    const back = before + 5000;
+    clock.resume("hidden", back);
+
+    // No frame since the return: a freeze from the end of the guard once it is longer than the threshold (183 ms).
+    expect(clock.freezes(back + RESUME_GUARD_MS + 100)).toEqual([]);
+    expect(clock.freezes(back + 2000)).toEqual([{ start: back + RESUME_GUARD_MS, end: back + 2000 }]);
+
+    // The first frame ends it; the frames after it count as usual.
+    const last = play(clock, back + 3000, back + 4000);
+    expect(clock.freezes(last)).toEqual([{ start: back + RESUME_GUARD_MS, end: back + 3000 }]);
+  });
+
   it("ignores a gap while the video is paused", () => {
     const clock = new FrameClock();
     const before = play(clock, 0, 3000);

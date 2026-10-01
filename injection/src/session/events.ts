@@ -5,8 +5,9 @@ import { EventKind, EventMessage, EventTone } from "shared/protocol";
 // PRD §6.4: the oldest events are dropped beyond this, except marks.
 export const EVENT_LIMIT = 2000;
 // A new frame height is a layer change once it has held this long.
-export const LAYER_STABLE_S = 1;
+const LAYER_STABLE_S = 1;
 
+// An event as the session keeps it: detectors also read a layer change's heights, which the panel does not get.
 export interface SessionEvent extends EventMessage {
   // layer_change: frame heights before and after.
   from?: number;
@@ -15,10 +16,13 @@ export interface SessionEvent extends EventMessage {
 
 const round = (t: number) => Math.round(t * 1000) / 1000;
 
+// `First frame 0.05 s`: the label of the first_frame event; t — seconds from the stream's start.
 export const firstFrameLabel = (t: number): string => `First frame ${t.toFixed(2)} s`;
 
-export const layerLabel = (from: number, to: number): string => `${from}p → ${to}p`;
+// `720p → 360p`: the label of a layer change, from the frame heights before and after.
+const layerLabel = (from: number, to: number): string => `${from}p → ${to}p`;
 
+// The session's events, oldest first: each one is numbered, kept and posted to the panel as it is added.
 export class EventLog {
   events: SessionEvent[] = [];
   // Events and marks ever added: numbers are not reused after eviction.
@@ -30,6 +34,7 @@ export class EventLog {
     this.send = send;
   }
 
+  // Numbers, keeps and posts an event; t is kept to the ms, and the panel gets it without the heights.
   add(t: number, kind: EventKind, label: string, tone: EventTone, detail: Pick<SessionEvent, "from" | "to"> = {}): SessionEvent {
     this.count += 1;
     const event: SessionEvent = { n: this.count, t: round(t), kind, label, tone, ...detail };
@@ -39,6 +44,7 @@ export class EventLog {
     return event;
   }
 
+  // A tester's mark: `Mark {n}`, blue, numbered among the marks.
   mark(t: number): SessionEvent {
     this.marks += 1;
     return this.add(t, "mark", `Mark ${this.marks}`, "blue");
@@ -49,6 +55,7 @@ export class EventLog {
     return this.events.filter((e) => e.kind === kind && e.t >= from && e.t <= to);
   }
 
+  // Marks are never dropped: when only marks are left, the log stays above the limit.
   private evict(): void {
     while (this.events.length > EVENT_LIMIT) {
       const oldest = this.events.findIndex((e) => e.kind !== "mark");
@@ -73,6 +80,7 @@ export class SampleEvents {
     this.log = log;
   }
 
+  // Each sample is checked for a layer change and a path change; one without t is skipped.
   onSample(s: SampleValues): void {
     if (s.t === null) {
       return;
@@ -90,7 +98,7 @@ export class SampleEvents {
       this.candidate = null;
       return;
     }
-    if (!this.candidate || this.candidate.h !== h) {
+    if (this.candidate?.h !== h) {
       this.candidate = { h, t };
       return;
     }

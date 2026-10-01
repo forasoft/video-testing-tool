@@ -1,3 +1,4 @@
+// The chart of a problem card: the problem's series in the samples around it.
 import React from "react";
 import styles from "./ProblemCard.module.css";
 import { groupThousands } from "../../../../shared/format";

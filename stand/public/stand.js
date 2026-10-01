@@ -42,10 +42,13 @@ const ui = {
   dumpBtn: $("dumpBtn"),
 };
 
+// The user of the stand's coturn (docker-compose.yml).
 const TURN_AUTH = { username: "stand", credential: "stand" };
 // Ports of coturn and of the shaping proxies as the stand's server reports them (/api/turn): a stand started on
 // other ports (SHAPER_PORT, SHAPER2_PORT) shapes only its own calls.
 const turnPorts = { turn: 3478, shaper: 3479, shaper2: 3480 };
+// The ICE configuration of each Route: Direct has no ICE servers (host candidates only), the TURN routes allow only
+// relay candidates. Functions, as the ports come from /api/turn.
 const ROUTES = {
   direct: () => ({}),
   // UDP goes through the stand's shaping proxy (udp/3479) in front of coturn (3478).
@@ -68,6 +71,7 @@ const SECOND_TURN_UDP = () => ({
 const NET_API = { call: "/api/net", second: "/api/net/second" };
 const RESOLUTIONS = { 360: [640, 360], 720: [1280, 720], 1080: [1920, 1080] };
 
+// The network presets of the buttons (data-net): the shaper's params and how long a timed one lasts before Clean.
 const NET_PRESETS = {
   clean: { label: "Clean", params: {} },
   loss5: { label: "Loss 5 %", params: { lossPct: 5 } },
@@ -79,21 +83,25 @@ const NET_PRESETS = {
   blackout40: { label: "Blackout", params: { blackout: true }, durationMs: 40_000 },
 };
 
+// The running call (startCall), the 2nd stream (toggleSecond) and the workers of CPU burn.
 let call = null;
 let second = null;
 let cpuWorkers = [];
 // The timer that ends a preset with a duration, per target.
 const netTimers = { call: null, second: null };
+// Whether coturn answered the last check (checkTurn, every 5 s).
 let turnUp = false;
 
 // ---------------------------------------------------------------- log & clock
 
+// m:ss since the call started: the time of the log lines and of the clock.
 function elapsed() {
   if (!call) return "0:00";
   const s = Math.floor((performance.now() - call.startedAt) / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
+// A line of the stand's log with the call time; the last 300 lines are kept.
 function log(text) {
   const item = document.createElement("li");
   const time = document.createElement("time");
@@ -108,6 +116,7 @@ setInterval(() => {
   ui.clock.textContent = elapsed();
 }, 250);
 
+// A badge of the top bar; `tone` is ok, warn or bad (stand.css), none for a neutral one.
 function setBadge(el, text, tone) {
   el.textContent = text;
   el.className = `badge${tone ? ` ${tone}` : ""}`;
@@ -115,6 +124,8 @@ function setBadge(el, text, tone) {
 
 // ---------------------------------------------------------------- media sources
 
+// A synthetic camera: a canvas captured as a video track, with moving shapes, the time and the frame number, so that
+// every frame differs and a freeze shows on the receiver's picture.
 class CanvasSource {
   constructor({ width, height, fps, label, hue }) {
     this.canvas = document.createElement("canvas");
@@ -177,6 +188,7 @@ class CanvasSource {
   }
 }
 
+// The call's audio: a quiet 220 Hz hum with an 880 Hz beep every second, so that the receiver has audio stats too.
 function createTone() {
   const ctx = new AudioContext();
   const destination = ctx.createMediaStreamDestination();
@@ -229,6 +241,8 @@ function linkIce(from, to) {
   return flush;
 }
 
+// Signalling between two PCs of this page: an offer and an answer on every negotiationneeded, one negotiation at a
+// time (one asked for meanwhile runs after it); `beforeAnswer` may change the answerer before it answers.
 function connectPair(offerer, answerer, beforeAnswer) {
   const flushToAnswerer = linkIce(offerer, answerer);
   const flushToOfferer = linkIce(answerer, offerer);
@@ -261,6 +275,7 @@ function connectPair(offerer, answerer, beforeAnswer) {
   offerer.addEventListener("negotiationneeded", negotiate);
 }
 
+// The codec of the Codec select goes first in the offer; one this browser does not have leaves the default.
 function applyCodecPreference(transceiver, codec) {
   const caps = RTCRtpReceiver.getCapabilities && RTCRtpReceiver.getCapabilities("video");
   if (!caps) return;
@@ -273,6 +288,7 @@ function applyCodecPreference(transceiver, codec) {
   transceiver.setCodecPreferences([...preferred, ...caps.codecs.filter((c) => c.mimeType.toLowerCase() !== mime)]);
 }
 
+// Patches the sender's first encoding (null removes a field) and, if given, its degradationPreference.
 async function updateEncoding(sender, patch, degradationPreference) {
   const params = sender.getParameters();
   if (!params.encodings || !params.encodings.length) params.encodings = [{}];
@@ -286,6 +302,7 @@ async function updateEncoding(sender, patch, degradationPreference) {
 
 // ---------------------------------------------------------------- the call
 
+// The call's settings from the form; they cannot change during the call (setControls locks them).
 function readSettings() {
   return {
     resolution: ui.resolution.value,
@@ -298,6 +315,8 @@ function readSettings() {
   };
 }
 
+// Start: a loopback call from pc1 (Sender A: the canvas video and a tone) to pc2, the receiver, on the chosen route;
+// with Two-way the receiver sends a video back. The Truth table is updated every second.
 async function startCall() {
   const settings = readSettings();
   if (settings.route !== "direct" && !turnUp) {
@@ -403,6 +422,8 @@ async function startCall() {
   renderCallState();
 }
 
+// Once the receiver's ICE connects: the preset's encoder settings, Cap bitrate and Layer, the late track of No video
+// and Auto-start.
 async function onConnected() {
   const { settings } = call;
   const connectedAt = elapsed();
@@ -434,6 +455,7 @@ async function onConnected() {
   if (settings.autoStart) call.timers.push(setTimeout(testThisStream, 500));
 }
 
+// Stop: closes both PCs and the sources, removes the 2nd stream and cleans both shapers for the next call.
 function stopCall() {
   if (!call) return;
   call.timers.forEach((timer) => {
@@ -461,6 +483,7 @@ function stopCall() {
   renderCallState();
 }
 
+// The Call badge: the receiver's connectionState.
 function renderCallState() {
   if (!call) {
     setBadge(ui.callBadge, "Idle");
@@ -471,6 +494,8 @@ function renderCallState() {
   setBadge(ui.callBadge, `Call: ${state}`, tone[state]);
 }
 
+// During a call its buttons ([data-needs-call]) work and the settings are locked; after it Cap bitrate and Layer go
+// back to off and full size.
 function setControls(active) {
   ui.startBtn.disabled = active;
   ui.stopBtn.disabled = !active;
@@ -489,17 +514,19 @@ function setControls(active) {
 
 // ---------------------------------------------------------------- StreamTest
 
+// Test this stream: what the extension's menu item does, on the receiver video; a script cannot open the context menu.
 function testThisStream() {
   const rect = ui.remoteVideo.getBoundingClientRect();
   const clientX = rect.left + rect.width / 2;
   const clientY = rect.top + rect.height / 2;
-  // The extension remembers the last right-click position and, on its menu item,
-  // receives VTT_CONTEXT_BTN_CLICK via window.postMessage. Reproduce both.
+  // The extension remembers the last right-click position and, on its menu item, receives VTT_CONTEXT_BTN_CLICK
+  // posted to the page's own window ("/": its own origin alone). Reproduce both.
   ui.remoteVideo.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX, clientY }));
-  window.postMessage({ id: "VTT_CONTEXT_BTN_CLICK" }, "*");
+  window.postMessage({ id: "VTT_CONTEXT_BTN_CLICK" }, "/");
   log(window.__vtt ? "Test this stream → sent to StreamTest" : "Test this stream: StreamTest extension not detected");
 }
 
+// The extension badge: window.__vtt appears once injection.js has run; it is looked for during 10 s.
 function detectExtension(attempt = 0) {
   if (window.__vtt) {
     setBadge(ui.extBadge, `StreamTest ${window.__vtt.version}`, "ok");
@@ -512,6 +539,7 @@ function detectExtension(attempt = 0) {
 
 // ---------------------------------------------------------------- scenarios
 
+// Jank 400 ms: the page's main thread is blocked, as by heavy page JavaScript (Page jank).
 function jank() {
   log("Jank 400 ms");
   const until = performance.now() + 400;
@@ -520,6 +548,7 @@ function jank() {
   }
 }
 
+// CPU burn on / off: a busy Web Worker per CPU core; a weak machine then limits its encoder by CPU.
 function toggleCpuBurn() {
   if (cpuWorkers.length) {
     cpuWorkers.forEach((worker) => worker.terminate());
@@ -538,6 +567,7 @@ function toggleCpuBurn() {
   log(`CPU burn on (${count} workers)`);
 }
 
+// Cap bitrate: the sender's maxBitrate. Also applied on connect, where "off" is not logged.
 async function applyCap() {
   if (!call || !call.connected) return;
   const kbps = Number(ui.capBitrate.value);
@@ -547,6 +577,7 @@ async function applyCap() {
   call.capWasSet = Boolean(kbps);
 }
 
+// Layer: the sender scales its video down by the chosen factor. Also applied on connect, where full size is not logged.
 async function applyLayer() {
   if (!call || !call.connected) return;
   const factor = Number(ui.layer.value);
@@ -555,11 +586,13 @@ async function applyLayer() {
   call.layerWasSet = factor !== 1;
 }
 
+// Freeze source 3 s: the sender stops drawing, so no frames are sent; a freeze that the network did not cause.
 function freezeSource() {
   call.source.freeze(3000);
   log("Freeze source 3 s");
 }
 
+// Pause video 3 s: the receiver <video> is paused; StreamTest must gray these seconds out, not report a freeze.
 function pauseVideo() {
   ui.remoteVideo.pause();
   log("Pause video 3 s");
@@ -571,17 +604,21 @@ function pauseVideo() {
   );
 }
 
+// Hide tab 10 s: a tab opened over the stand (hide.html) hides it and closes itself after 10 s.
 function hideTab() {
   log("Hide tab 10 s");
   window.open("hide.html", "_blank");
 }
 
+// Close receiver PC: the receiving connection is closed, so the stream is lost.
 function closeReceiver() {
   call.pc2.close();
   log("Receiver PC closed");
   renderCallState();
 }
 
+// Add / Remove 2nd stream: a second loopback call with a video of its own, for Other streams; on the TURN udp route
+// its network has a shaper of its own (secondConfig).
 async function toggleSecond() {
   if (second) {
     second.a.close();
@@ -598,7 +635,7 @@ async function toggleSecond() {
     return;
   }
   const source = new CanvasSource({ width: 640, height: 360, fps: 30, label: "Stream 2", hue: 28 });
-  const config = call && call.settings.route === "turn-udp" ? SECOND_TURN_UDP() : call ? call.config : {};
+  const config = secondConfig();
   const a = new RTCPeerConnection(config);
   const b = new RTCPeerConnection(config);
   const remote = new MediaStream();
@@ -617,6 +654,7 @@ async function toggleSecond() {
 
 // ---------------------------------------------------------------- network
 
+// Sends a network preset to the call's shaper or the 2nd stream's; false if the stand's server did not take it.
 async function postNet(params, target = "call") {
   try {
     const res = await fetch(NET_API[target], {
@@ -667,6 +705,7 @@ async function applyNetPreset(name, target = ui.netTarget.value) {
 // the old path's consent has expired (30 s) — otherwise the call moves back to it.
 const UDP_BLOCK_MS = 35_000;
 
+// Block UDP → relay tcp: both PCs move to TURN over TCP with an ICE restart, and the call's shaper drops UDP.
 async function switchToTcpRelay() {
   if (!turnUp) {
     log("TURN is not running — start it with `npm run stand:turn`");
@@ -696,11 +735,13 @@ async function switchToTcpRelay() {
   }, UDP_BLOCK_MS);
 }
 
+// A route the tester picked is kept: checkTurn changes Direct to TURN udp only until then.
 let routeTouched = false;
 ui.route.addEventListener("change", () => {
   routeTouched = true;
 });
 
+// Every 5 s: whether coturn answers, and the ports of this stand's TURN and shapers.
 async function checkTurn() {
   try {
     const res = await fetch("/api/turn");
@@ -717,6 +758,13 @@ async function checkTurn() {
 
 // ---------------------------------------------------------------- truth
 
+// The 2nd stream's ICE configuration: on the TURN udp route a shaper of its own, else the call's route.
+function secondConfig() {
+  if (!call) return {};
+  return call.settings.route === "turn-udp" ? SECOND_TURN_UDP() : call.config;
+}
+
+// The first stat of a type (and kind) in a getStats() report.
 function find(report, type, kind) {
   for (const stat of report.values()) {
     if (stat.type === type && (!kind || stat.kind === kind)) return stat;
@@ -724,6 +772,7 @@ function find(report, type, kind) {
   return undefined;
 }
 
+// The selected candidate pair and its candidates; the nominated succeeded pair if the transport names none.
 function selectedPair(report) {
   const transport = find(report, "transport");
   let pair = transport && report.get(transport.selectedCandidatePairId);
@@ -736,17 +785,20 @@ function selectedPair(report) {
   return { pair, local: report.get(pair.localCandidateId), remote: report.get(pair.remoteCandidateId) };
 }
 
+// kbit/s of a byte counter between two stats: bytes × 8 / ms.
 const rate = (cur, prev, key) =>
   cur && prev && cur[key] !== undefined && prev[key] !== undefined && cur.timestamp > prev.timestamp
     ? ((cur[key] - prev[key]) * 8) / (cur.timestamp - prev.timestamp)
     : undefined;
 
+// Average per item since the previous stat, ms, of a total in seconds: jitterBufferDelay / jitterBufferEmittedCount.
 const perItem = (cur, prev, total, count) => {
   if (!cur || !prev) return undefined;
   const dCount = cur[count] - prev[count];
   return dCount > 0 ? ((cur[total] - prev[total]) / dCount) * 1000 : undefined;
 };
 
+// Packet loss over the last 5 polls, %: each poll adds its lost and received packets to `windowArr`.
 function windowLoss(windowArr, cur, prev) {
   if (cur && prev) {
     windowArr.push({ lost: cur.packetsLost - prev.packetsLost, received: cur.packetsReceived - prev.packetsReceived });
@@ -757,6 +809,7 @@ function windowLoss(windowArr, cur, prev) {
   return lost + received > 0 ? (lost / (lost + received)) * 100 : undefined;
 }
 
+// A value with `digits` decimals and its unit, or — when there is none.
 const fmt = (value, digits = 0, unit = "") =>
   value === undefined || value === null || Number.isNaN(value) ? "—" : `${Number(value).toFixed(digits)}${unit}`;
 
@@ -764,6 +817,7 @@ const fmt = (value, digits = 0, unit = "") =>
 // buffer target jumps to 1 s — the audio runs ahead until lip sync has delayed it as much (~15 s).
 const DESYNC_MS = 1000;
 
+// Desync preset, once: the video receiver's jitter buffer target becomes DESYNC_MS (playoutDelayHint in older Chrome).
 function desync(current) {
   current.desynced = true;
   const receiver = current.pc2.getReceivers().find((r) => r.track.kind === "video");
@@ -773,24 +827,112 @@ function desync(current) {
   log(`Desync: video jitter buffer +${DESYNC_MS / 1000} s — audio runs ahead until lip sync catches up`);
 }
 
+// Audio − video estimated playout timestamps, ms; undefined until the receiver reports both.
 const playoutOffset = (aIn, vIn) =>
   aIn && vIn && aIn.estimatedPlayoutTimestamp && vIn.estimatedPlayoutTimestamp
     ? aIn.estimatedPlayoutTimestamp - vIn.estimatedPlayoutTimestamp
     : undefined;
 
+// Cells of the Truth table: the frame size, and the decoder's freezes as `count · total duration`.
+const sizeOf = (stat) => (stat && stat.frameWidth ? `${stat.frameWidth}×${stat.frameHeight}` : "—");
+const freezesOf = (stat) => (stat ? `${stat.freezeCount ?? 0} · ${fmt(stat.totalFreezesDuration, 1, " s")}` : "—");
+
+// Audio samples concealed since the previous poll, %.
+function concealedPct(aIn, prevIn) {
+  const total = aIn && prevIn ? aIn.totalSamplesReceived - prevIn.totalSamplesReceived : 0;
+  return total > 0 ? ((aIn.concealedSamples - prevIn.concealedSamples) / total) * 100 : undefined;
+}
+
+// The rows of the Truth table: [label] is a section heading, [label, value] a value.
+function videoInRows(vIn, prevIn, rx, lossWindow) {
+  const codec = vIn && rx.get(vIn.codecId);
+  return [
+    ["Receiver · incoming video"],
+    ["Bitrate", fmt(rate(vIn, prevIn, "bytesReceived"), 0, " kbps")],
+    ["Frame rate (framesPerSecond)", fmt(vIn && vIn.framesPerSecond, 1, " fps")],
+    ["Resolution", sizeOf(vIn)],
+    ["Packet loss (5 s)", fmt(windowLoss(lossWindow, vIn, prevIn), 2, " %")],
+    ["Jitter", fmt(vIn && vIn.jitter * 1000, 0, " ms")],
+    ["Jitter buffer", fmt(perItem(vIn, prevIn, "jitterBufferDelay", "jitterBufferEmittedCount"), 0, " ms")],
+    ["Freezes (decoder)", freezesOf(vIn)],
+    ["Codec", codec ? codec.mimeType.replace("video/", "") : "—"],
+    ["Decoder", (vIn && vIn.decoderImplementation) || "—"],
+  ];
+}
+
+// The receiver's incoming audio; the A/V offset needs the video's playout timestamp too.
+function audioInRows({ aIn, vIn }, prev, lossWindow) {
+  return [
+    ["Receiver · incoming audio"],
+    ["Bitrate", fmt(rate(aIn, prev.aIn, "bytesReceived"), 0, " kbps")],
+    ["Packet loss (5 s)", fmt(windowLoss(lossWindow, aIn, prev.aIn), 2, " %")],
+    ["Concealed", fmt(concealedPct(aIn, prev.aIn), 1, " %")],
+    ["A/V offset (audio − video)", fmt(playoutOffset(aIn, vIn), 0, " ms")],
+  ];
+}
+
+// The receiver's connection; its path is the selected pair's candidate types and protocol (relayProtocol for a relay).
+function connectionRows(pc, { pair, local, remote }) {
+  const path = local && remote
+    ? `${local.candidateType}→${remote.candidateType} · ${local.relayProtocol || local.protocol}`
+    : "—";
+  return [
+    ["Connection"],
+    ["ICE state", pc.iceConnectionState],
+    ["Path", path],
+    ["RTT", fmt(pair && pair.currentRoundTripTime * 1000, 0, " ms")],
+    ["Channel estimate", fmt(pair && pair.availableIncomingBitrate / 1000, 0, " kbps")],
+  ];
+}
+
+// Sender A's outgoing video: what it sends, its target and what limits it.
+function senderRows(vOut, prevOut) {
+  return [
+    ["Sender A · outgoing video"],
+    ["Bitrate", fmt(rate(vOut, prevOut, "bytesSent"), 0, " kbps")],
+    ["Target", fmt(vOut && vOut.targetBitrate / 1000, 0, " kbps")],
+    ["Resolution", sizeOf(vOut)],
+    ["Limited by", (vOut && vOut.qualityLimitationReason) || "—"],
+    ["Encoder", (vOut && vOut.encoderImplementation) || "—"],
+  ];
+}
+
+// The receiver's own outgoing video of a two-way call.
+function twoWayRows(rOut, prevOut) {
+  return [
+    ["Receiver · outgoing video (two-way)"],
+    ["Bitrate", fmt(rate(rOut, prevOut, "bytesSent"), 0, " kbps")],
+    ["Limited by", (rOut && rOut.qualityLimitationReason) || "—"],
+  ];
+}
+
+// The 2nd stream's receiver; its previous stat is kept in `other` for the bitrate and the loss.
+function secondStreamRows(other, rx2) {
+  const in2 = find(rx2, "inbound-rtp", "video");
+  const prev2 = other.truthPrev;
+  other.truthPrev = in2;
+  return [
+    ["Stream 2 · incoming video"],
+    ["Bitrate", fmt(rate(in2, prev2, "bytesReceived"), 0, " kbps")],
+    ["Resolution", sizeOf(in2)],
+    ["Packet loss (5 s)", fmt(windowLoss(other.lossWindow, in2, prev2), 2, " %")],
+    ["Freezes (decoder)", freezesOf(in2)],
+  ];
+}
+
+// Once a second: the call's own getStats() — the reference the extension's numbers are compared with.
 async function updateTruth() {
   const current = call;
   if (!current || current.pc2.signalingState === "closed") return;
-  let rx;
-  let tx;
   const other = second;
-  let rx2 = null;
+  let reports;
   try {
-    [rx, tx, rx2] = await Promise.all([current.pc2.getStats(), current.pc1.getStats(), other ? other.b.getStats() : null]);
+    reports = await Promise.all([current.pc2.getStats(), current.pc1.getStats(), other ? other.b.getStats() : null]);
   } catch {
     return;
   }
   if (current !== call) return;
+  const [rx, tx, rx2] = reports;
 
   const now = {
     vIn: find(rx, "inbound-rtp", "video"),
@@ -801,69 +943,20 @@ async function updateTruth() {
   };
   const prev = current.truthPrev || {};
   current.truthPrev = now;
-
-  const { vIn, aIn, vOut, rOut, pair, local, remote } = now;
-  if (current.settings.preset === "desync" && !current.desynced && playoutOffset(aIn, vIn) !== undefined) desync(current);
-  const codec = vIn && rx.get(vIn.codecId);
-  const concealed =
-    aIn && prev.aIn && aIn.totalSamplesReceived - prev.aIn.totalSamplesReceived > 0
-      ? ((aIn.concealedSamples - prev.aIn.concealedSamples) / (aIn.totalSamplesReceived - prev.aIn.totalSamplesReceived)) * 100
-      : undefined;
-  const path =
-    local && remote
-      ? `${local.candidateType}→${remote.candidateType} · ${local.relayProtocol || local.protocol}`
-      : "—";
+  if (current.settings.preset === "desync" && !current.desynced && playoutOffset(now.aIn, now.vIn) !== undefined) desync(current);
 
   const rows = [
-    ["Receiver · incoming video"],
-    ["Bitrate", fmt(rate(vIn, prev.vIn, "bytesReceived"), 0, " kbps")],
-    ["Frame rate (framesPerSecond)", fmt(vIn && vIn.framesPerSecond, 1, " fps")],
-    ["Resolution", vIn && vIn.frameWidth ? `${vIn.frameWidth}×${vIn.frameHeight}` : "—"],
-    ["Packet loss (5 s)", fmt(windowLoss(current.lossWindow.video, vIn, prev.vIn), 2, " %")],
-    ["Jitter", fmt(vIn && vIn.jitter * 1000, 0, " ms")],
-    ["Jitter buffer", fmt(perItem(vIn, prev.vIn, "jitterBufferDelay", "jitterBufferEmittedCount"), 0, " ms")],
-    ["Freezes (decoder)", vIn ? `${vIn.freezeCount ?? 0} · ${fmt(vIn.totalFreezesDuration, 1, " s")}` : "—"],
-    ["Codec", codec ? codec.mimeType.replace("video/", "") : "—"],
-    ["Decoder", (vIn && vIn.decoderImplementation) || "—"],
-    ["Receiver · incoming audio"],
-    ["Bitrate", fmt(rate(aIn, prev.aIn, "bytesReceived"), 0, " kbps")],
-    ["Packet loss (5 s)", fmt(windowLoss(current.lossWindow.audio, aIn, prev.aIn), 2, " %")],
-    ["Concealed", fmt(concealed, 1, " %")],
-    ["A/V offset (audio − video)", fmt(playoutOffset(aIn, vIn), 0, " ms")],
-    ["Connection"],
-    ["ICE state", current.pc2.iceConnectionState],
-    ["Path", path],
-    ["RTT", fmt(pair && pair.currentRoundTripTime * 1000, 0, " ms")],
-    ["Channel estimate", fmt(pair && pair.availableIncomingBitrate / 1000, 0, " kbps")],
-    ["Sender A · outgoing video"],
-    ["Bitrate", fmt(rate(vOut, prev.vOut, "bytesSent"), 0, " kbps")],
-    ["Target", fmt(vOut && vOut.targetBitrate / 1000, 0, " kbps")],
-    ["Resolution", vOut && vOut.frameWidth ? `${vOut.frameWidth}×${vOut.frameHeight}` : "—"],
-    ["Limited by", (vOut && vOut.qualityLimitationReason) || "—"],
-    ["Encoder", (vOut && vOut.encoderImplementation) || "—"],
+    ...videoInRows(now.vIn, prev.vIn, rx, current.lossWindow.video),
+    ...audioInRows(now, prev, current.lossWindow.audio),
+    ...connectionRows(current.pc2, now),
+    ...senderRows(now.vOut, prev.vOut),
   ];
-  if (current.settings.twoWay) {
-    rows.push(
-      ["Receiver · outgoing video (two-way)"],
-      ["Bitrate", fmt(rate(rOut, prev.rOut, "bytesSent"), 0, " kbps")],
-      ["Limited by", (rOut && rOut.qualityLimitationReason) || "—"],
-    );
-  }
-  if (other && rx2 && other === second) {
-    const in2 = find(rx2, "inbound-rtp", "video");
-    const prev2 = other.truthPrev;
-    other.truthPrev = in2;
-    rows.push(
-      ["Stream 2 · incoming video"],
-      ["Bitrate", fmt(rate(in2, prev2, "bytesReceived"), 0, " kbps")],
-      ["Resolution", in2 && in2.frameWidth ? `${in2.frameWidth}×${in2.frameHeight}` : "—"],
-      ["Packet loss (5 s)", fmt(windowLoss(other.lossWindow, in2, prev2), 2, " %")],
-      ["Freezes (decoder)", in2 ? `${in2.freezeCount ?? 0} · ${fmt(in2.totalFreezesDuration, 1, " s")}` : "—"],
-    );
-  }
+  if (current.settings.twoWay) rows.push(...twoWayRows(now.rOut, prev.rOut));
+  if (other && rx2 && other === second) rows.push(...secondStreamRows(other, rx2));
   renderTruth(rows);
 }
 
+// Draws the rows; a heading spans both columns.
 function renderTruth(rows) {
   const body = rows.map(([label, value]) => {
     const tr = document.createElement("tr");
@@ -884,6 +977,7 @@ function renderTruth(rows) {
   ui.truth.replaceChildren(...body);
 }
 
+// Dump getStats: both sides' reports saved as a JSON file, fixtures for tests.
 async function dumpStats() {
   const [rx, tx] = await Promise.all([call.pc2.getStats(), call.pc1.getStats()]);
   const data = {
@@ -904,6 +998,7 @@ async function dumpStats() {
 
 // ---------------------------------------------------------------- wiring
 
+// Codecs this browser cannot receive are disabled in the Codec select.
 function markUnsupportedCodecs() {
   const caps = RTCRtpReceiver.getCapabilities && RTCRtpReceiver.getCapabilities("video");
   if (!caps) return;
@@ -934,6 +1029,7 @@ ui.netButtons.addEventListener("click", (event) => {
   const button = event.target.closest("[data-net]");
   if (button) applyNetPreset(button.dataset.net);
 });
+// Tab hidden / visible in the log, to compare with StreamTest's events.
 document.addEventListener("visibilitychange", () => {
   if (call) log(document.hidden ? "Tab hidden" : "Tab visible");
 });

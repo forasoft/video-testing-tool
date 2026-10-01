@@ -4,20 +4,22 @@ import { Description, Detector, Problem, ProblemEngine } from "./engine";
 
 // Start: concealed samples over the 5-s window (a_concealed_pct) above 5 %; end: below 2 % five samples in a
 // row; severe when the peak is above 20 %.
-export const START_PCT = 5;
-export const END_PCT = 2;
+const START_PCT = 5;
+const END_PCT = 2;
 export const END_SAMPLES = 5;
-export const SEVERE_PCT = 20;
+const SEVERE_PCT = 20;
 
 const max = (values: number[]) => (values.length ? Math.max(...values) : null);
 const pct = (value: number | null) => (value === null ? "—" : `${value.toFixed(1)} %`);
 const ms = (value: number | null) => (value === null ? "—" : `${Math.round(value)} ms`);
 
+// Detects Audio stutter from a_concealed_pct, the share of concealed audio samples over the last 5 s.
 export class AudioStutter implements Detector {
   readonly type = "audio_stutter";
   // Times of the calm samples in a row while a stutter goes on.
   private calm: number[] = [];
 
+  // One sample above START_PCT opens a stutter (the field is a 5-s window already); END_SAMPLES calm ones close it.
   onSample(engine: ProblemEngine): void {
     const concealed = engine.sample?.a_concealed_pct ?? null;
     const open = engine.current(this.type);
@@ -41,6 +43,7 @@ export class AudioStutter implements Detector {
     }
   }
 
+  // Severe when the concealed share peaked above SEVERE_PCT; the rows are the peaks over the problem.
   describe(problem: Problem, engine: ProblemEngine): Description {
     const end = problem.tEnd ?? engine.t;
     const peak = max(engine.values("a_concealed_pct", problem.tStart, end));

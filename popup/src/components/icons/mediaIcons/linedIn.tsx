@@ -1,3 +1,4 @@
+// Icon of the LinkedIn link.
 import React from "react";
 
 export const LinkedInIcon: React.FC = () => (

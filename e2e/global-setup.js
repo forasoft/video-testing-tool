@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { BUILD } from "./lib/paths.js";
 
+// Stops the run at once without build/; otherwise prints which build the tests load: its version and build time.
 export default async function globalSetup() {
   const manifest = path.join(BUILD, "manifest.json");
   if (!fs.existsSync(manifest) || !fs.existsSync(path.join(BUILD, "injection.js"))) {

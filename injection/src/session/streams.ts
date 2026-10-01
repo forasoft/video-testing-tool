@@ -15,26 +15,30 @@ import { getStats } from "./perf";
 export const STREAMS_EVERY_SAMPLES = 5;
 
 // A video track the page receives, numbered by the wrapper.
-export interface StreamTrack {
+interface StreamTrack {
   track: MediaStreamTrack;
   peer: RTCPeerConnection;
   n: number;
 }
 
 // The <video> that shows a track: the resolution is graded against its size (PRD §7).
-export interface ElementSize {
+interface ElementSize {
   clientWidth: number;
   clientHeight: number;
 }
 
+// A row's values: frame size, bitrate (kbps), loss (%) and the share of freezes (%).
 export type StreamValues = Pick<StreamRow, "w" | "h" | "bitrate" | "loss" | "freezes">;
 
+// The selected stream's values before its first sample.
 const EMPTY: StreamValues = {
   w: null, h: null, bitrate: null, loss: null, freezes: null,
 };
 
+// A finite number from a report field, else null.
 const num = (value: unknown): number | null => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
+// The other report is of the same SSRC: their counters can be compared.
 const sameStream = (cur: RtpStats, other?: RtpStats): other is RtpStats => other !== undefined && other.ssrc === cur.ssrc;
 
 // packetsLost Δ / (packetsLost Δ + packetsReceived Δ) × 100 since the previous poll; null without packets.
@@ -71,6 +75,7 @@ export const streamValues = (cur: RtpStats, prev?: RtpStats, first?: RtpStats): 
   freezes: watchedFreezes(cur, first),
 });
 
+// Grades from the best to the worst.
 const RANK: Goodness[] = ["good", "moderate", "bad"];
 
 // The worst of the grades; undefined without any.
@@ -85,7 +90,7 @@ export const valuesGoodness = (v: StreamValues, element: ElementSize | null): Go
   v.freezes === null ? undefined : freezesGoodness(v.freezes),
 ]);
 
-// The selected stream's row: the values and grades of its tiles.
+// The selected stream's row: the values of its tiles (their grades come from selectedGoodness).
 export const selectedValues = (sample: SampleValues): StreamValues => ({
   w: sample.v_w,
   h: sample.v_h,
@@ -94,9 +99,11 @@ export const selectedValues = (sample: SampleValues): StreamValues => ({
   freezes: sample.v_freeze_pct,
 });
 
+// The selected stream's dot: the worst grade of the tiles its row shows.
 export const selectedGoodness = (goodness: GoodnessMap): Goodness | undefined =>
   worstGoodness([goodness.resolution, goodness.bitrate, goodness.loss, goodness.freezes]);
 
+// What a row is made of; `n` — the track's number from the wrapper.
 interface RowSource {
   n: number;
   trackId: string;
@@ -118,6 +125,7 @@ export const streamRow = ({
   tooltip: `track ${trackId} · mid ${mid ?? "—"}`,
 });
 
+// The video inbound-rtp reports of a getStats() result.
 const inboundVideo = (report: RTCStatsReport): RtpStats[] => {
   const list: RtpStats[] = [];
   report.forEach((stat: RtpStats) => {
@@ -128,8 +136,9 @@ const inboundVideo = (report: RTCStatsReport): RtpStats[] => {
   return list;
 };
 
+// The mid of the transceiver that receives the track; null without one.
 const midOf = (peer: RTCPeerConnection, track: MediaStreamTrack): string | null => {
-  const transceiver = peer.getTransceivers ? peer.getTransceivers().find((t) => t.receiver.track === track) : undefined;
+  const transceiver = peer.getTransceivers().find((t) => t.receiver.track === track);
   return transceiver?.mid ?? null;
 };
 
@@ -140,7 +149,8 @@ export const elementOf = (track: MediaStreamTrack): ElementSize | null => {
   return video ? { clientWidth: video.clientWidth, clientHeight: video.clientHeight } : null;
 };
 
-export interface StreamsSource {
+// What OtherStreams polls: the selected connection and track, the page's video tracks and the <video> of each.
+interface StreamsSource {
   // The selected connection and the selected stream's video track.
   peer: RTCPeerConnection;
   track?: MediaStreamTrack;

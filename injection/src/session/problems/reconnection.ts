@@ -6,7 +6,8 @@ import { Description, Detector, MIN_DURATION_S, Problem, ProblemEngine, Signal }
 // Not connected again after this long → closed as "not recovered", the session is disconnected.
 export const NOT_RECOVERED_S = 30;
 
-export interface ReconnectionData {
+// The worst ICE state while the connection was down, whether it came back, and the path it came back on.
+interface ReconnectionData {
   worst: "disconnected" | "failed";
   recovered: boolean;
   // Candidate types and protocol once media flows again.
@@ -27,11 +28,13 @@ export const lastPacketTime = (pair: RtpStats | undefined, t: number): number | 
   return Math.round((t - (now - last) / 1000) * 1000) / 1000;
 };
 
+// Detects Reconnection: ICE disconnected or failed after it had been connected; ends when it is connected again.
 export class Reconnection implements Detector<ReconnectionData> {
   readonly type = "reconnection";
   // ICE has been connected during the session.
   private wasUp = false;
 
+  // Connected again closes the problem as recovered; a drop opens one only after ICE has been connected once.
   onSignal(signal: Signal, engine: ProblemEngine): void {
     const open = engine.current<ReconnectionData>(this.type);
 
@@ -66,6 +69,7 @@ export class Reconnection implements Detector<ReconnectionData> {
     });
   }
 
+  // Gives up after NOT_RECOVERED_S and ends the session; fills in the path a recovered connection came back on.
   onSample(engine: ProblemEngine): void {
     const open = engine.current<ReconnectionData>(this.type);
     if (open && engine.t - open.tStart >= NOT_RECOVERED_S) {
@@ -86,6 +90,7 @@ export class Reconnection implements Detector<ReconnectionData> {
     });
   }
 
+  // The ICE row: connected → the worst state → connected again or not recovered.
   describe(problem: Problem<ReconnectionData>, engine: ProblemEngine): Description {
     const { worst, recovered, pathAfter } = problem.data;
     const down = `${engine.duration(problem).toFixed(1)} s`;

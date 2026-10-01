@@ -1,11 +1,11 @@
 // Renders of the panel and redraws of its charts (PRD §18: ≤ 1 render a second + 4 of Frame rate, a redraw ≤ 8 ms),
 // for __vtt.debug.perf() on the page: it asks with VTT_GET_PERF, the panel answers VTT_PERF.
 import { useLayoutEffect } from "react";
-import { GetPerfMessage, MESSAGES, PanelPerfMessage } from "../../../shared/protocol";
-import { postToWindow } from "./postToWindow";
+import { GetPerfMessage, MESSAGES, PanelMessage, PanelPerfMessage } from "../../../shared/protocol";
+import { postToWindow } from "./page";
 
 // The views whose renders are counted: the tiles of Compact and Mini, the Timeline and the Report tabs.
-export type PerfView = "tiles" | "timeline" | "report";
+type PerfView = "tiles" | "timeline" | "report";
 
 // Renders kept: over a minute of them.
 const KEPT_MS = 60_000;
@@ -21,6 +21,7 @@ let renders: Render[] = [];
 // The view drawn last.
 let shown: PerfView | null = null;
 
+// Keeps a render and forgets those more than a minute older than it.
 const note = (render: Render) => {
   renders.push(render);
   if (renders[0].at < render.at - KEPT_MS) {
@@ -80,9 +81,9 @@ export const panelPerf = (windowS: number, mainScreen: boolean, now = performanc
 };
 
 // Answers VTT_GET_PERF of the page; `mainScreen` — whether the start screen is shown.
-export const answerPerf = (e: MessageEvent, mainScreen: boolean): void => {
-  if (e.data?.id === MESSAGES.VTT_GET_PERF) {
-    const { windowS } = (e.data.data ?? {}) as Partial<GetPerfMessage>;
+export const answerPerf = (message: PanelMessage, mainScreen: boolean): void => {
+  if (message.id === MESSAGES.VTT_GET_PERF) {
+    const { windowS } = (message.data ?? {}) as Partial<GetPerfMessage>;
     postToWindow(MESSAGES.VTT_PERF, panelPerf(typeof windowS === "number" && windowS > 0 ? windowS : 10, mainScreen));
   }
 };

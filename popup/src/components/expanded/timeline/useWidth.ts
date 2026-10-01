@@ -1,3 +1,4 @@
+// The size hook of the timeline: its plots, time axis, events band and overlay are drawn to their own width.
 import { RefObject, useEffect, useState } from "react";
 
 // Width of an element in whole pixels: charts are drawn in pixels and follow the panel's width.

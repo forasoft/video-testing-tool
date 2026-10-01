@@ -1,6 +1,7 @@
 // Numbers in interface texts (PRD §7): thousands separated by a narrow space, decimal point.
 const NARROW_SPACE = "\u202F";
 
+// Rounded to an integer, thousands grouped:
 // 1 546
 export const groupThousands = (value: number): string =>
   Math.round(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, NARROW_SPACE);

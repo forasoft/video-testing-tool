@@ -1,3 +1,4 @@
+// One chart of the Timeline as SVG: Bitrate, Frame rate, Packet loss or Delay.
 import React, { useRef } from "react";
 import styles from "./Timeline.module.css";
 import {
@@ -6,7 +7,10 @@ import {
 import { NUMBER_R, numberCenters } from "./numbers";
 import { useWidth } from "./useWidth";
 
+// A series of a chart: a line, an area under it, or both.
 export interface ChartSeries {
+  // What the series shows, unique in its chart: the key of its SVG group.
+  key: string;
   points: Point[];
   color: string;
   // Fill down to 0 with this opacity: 0.12 under a line (PRD §11.2), 1 for a layer of the delay stack.
@@ -16,7 +20,8 @@ export interface ChartSeries {
   dashed?: boolean;
 }
 
-export interface AxisLabel {
+// A value of the y axis with its text: a scale label, or the limit line's.
+interface AxisLabel {
   value: number;
   text: string;
 }
@@ -24,6 +29,8 @@ export interface AxisLabel {
 // A vertical band over the whole height (PRD §11.2): the tab was hidden or the video paused,
 // or a problem of that severity.
 export interface ChartBand {
+  // Unique among the chart's bands: `problem-{id}` or `hidden-{from}`.
+  key: string;
   from: number;
   to: number;
   kind: "hidden" | "warn" | "severe";
@@ -63,14 +70,16 @@ export const TimeChart: React.FC<TimeChartProps> = ({
     <div ref={ref} className={styles.plot} style={{ height }}>
       {width > 0 && (
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
-          {bands.map(({ from, to, kind, number }) => {
+          {bands.map(({
+            key, from, to, kind, number,
+          }) => {
             // Whole pixels: in Whole session a band moves a fifth of a pixel a second, and an hour has up to 200
             // problems on each of the four rows — they are drawn again only when they cross a pixel (PRD §18).
             const left = Math.round(Math.max(0, x(from)));
             const right = Math.round(Math.min(width, x(to)));
             return right < 0 || left > width ? null : (
               <rect
-                key={`${kind}-${number ?? from}`}
+                key={key}
                 className={styles[kind]}
                 x={left}
                 y={0}
@@ -84,9 +93,9 @@ export const TimeChart: React.FC<TimeChartProps> = ({
           <line className={styles.grid} x1={0} x2={width} y1={height / 2} y2={height / 2} />
           <line className={styles.grid} x1={0} x2={width} y1={height - 0.5} y2={height - 0.5} />
           {series.map(({
-            points, color, fill, line = 1.8, dashed,
-          }, i) => (
-            <g key={i}>
+            key, points, color, fill, line = 1.8, dashed,
+          }) => (
+            <g key={key}>
               {fill !== undefined && <path d={areaPath(points, x, y)} style={{ fill: color }} opacity={fill} />}
               {line > 0 && (
                 <path

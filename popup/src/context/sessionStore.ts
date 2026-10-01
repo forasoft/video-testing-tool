@@ -22,7 +22,9 @@ export interface SessionState {
   streams: StreamRow[];
 }
 
+// Events kept at most, as in the injection (PRD §6.4).
 export const EVENT_LIMIT = 2000;
+// Problems kept at most, as in the injection (PRD §6.4).
 export const PROBLEM_LIMIT = 200;
 
 // Events by number; beyond the limit the oldest ones go, marks stay.
@@ -51,12 +53,12 @@ export const addEvents = (events: EventMessage[], incoming: EventMessage[]): Eve
 export const addProblems = (problems: ProblemMessage[], incoming: ProblemMessage[], replace: boolean): ProblemMessage[] => {
   const byId = new Map(problems.map((p) => [p.id, p]));
   let changed = false;
-  incoming.forEach((p) => {
+  for (const p of incoming) {
     if (replace || !byId.has(p.id)) {
       byId.set(p.id, p);
       changed = true;
     }
-  });
+  }
   if (!changed) {
     return problems;
   }

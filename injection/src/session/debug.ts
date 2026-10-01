@@ -18,6 +18,7 @@ const heapMB = (): number | null => {
   return memory ? round(memory.usedJSHeapSize / MB, 1) : null;
 };
 
+// What __vtt.debug.perf() returns: the load of the page and of the panel over the window, and the memory.
 export interface PerfReport {
   windowS: number;
   // The page: getStats() calls of the selected connection per second and of the busiest other one per 5 s; the

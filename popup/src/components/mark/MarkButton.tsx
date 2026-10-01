@@ -1,10 +1,11 @@
+// The Mark button of the Expanded header and the Compact footer.
 import React, {
   useContext, useEffect, useState
 } from "react";
 import styles from "./MarkButton.module.css";
 import { SessionContext } from "../../context/SessionContext";
 import { MESSAGES } from "../../../../shared/protocol";
-import { postToWindow } from "../../utils/postToWindow";
+import { postToWindow } from "../../utils/page";
 
 // The text says `Marked` this long after a click (PRD §8.3).
 const MARKED_MS = 1000;

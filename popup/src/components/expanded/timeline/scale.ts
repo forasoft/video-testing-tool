@@ -7,13 +7,14 @@ export interface TimeWindow {
   to: number;
 }
 
+// A value at a time, seconds from the session start; null — no data, a gap in the line.
 export interface Point {
   t: number;
   v: number | null;
 }
 
 // Pixels of a point.
-export type Scale = (value: number) => number;
+type Scale = (value: number) => number;
 
 // Round maxima m × 10^k: their halves (the middle label) are round too.
 const STEPS = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];

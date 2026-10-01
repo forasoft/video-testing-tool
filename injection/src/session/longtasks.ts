@@ -2,6 +2,7 @@
 // jank, the `page` cause of Video freeze and the per-second fields longtask_max / longtask_sum.
 import { BUFFER_SECONDS } from "shared/constants/sampleFields";
 
+// A long task: start and end in seconds from the session start, duration in ms.
 export interface LongTask {
   // Seconds from the session start.
   start: number;
@@ -15,6 +16,7 @@ export type TaskSource = (from: number, to: number) => LongTask[] | null;
 
 const round = (t: number) => Math.round(t * 1000) / 1000;
 
+// The page's long tasks: kept as long as the sample buffer for the detectors, drained into each sample's fields.
 export class LongTasks {
   // Oldest first; tasks older than the sample buffer are dropped.
   tasks: LongTask[] = [];
@@ -42,6 +44,7 @@ export class LongTasks {
     };
   }
 
+  // The kept tasks that overlap [from, to], seconds: the TaskSource of the detectors.
   between(from: number, to: number): LongTask[] {
     return this.tasks.filter((task) => task.end >= from && task.start <= to);
   }
@@ -50,7 +53,7 @@ export class LongTasks {
 // Feeds the tasks of the page from now on; `since` turns a performance.now() time into ms from the session start.
 // Returns the function that stops it, or null when the browser does not report long tasks.
 export const observeLongTasks = (tasks: LongTasks, since: (now: number) => number): (() => void) | null => {
-  if (typeof PerformanceObserver === "undefined" || !PerformanceObserver.supportedEntryTypes?.includes("longtask")) {
+  if (typeof PerformanceObserver === "undefined" || !PerformanceObserver.supportedEntryTypes.includes("longtask")) {
     return null;
   }
   const observer = new PerformanceObserver((list) => {

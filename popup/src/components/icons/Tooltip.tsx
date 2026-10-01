@@ -1,3 +1,4 @@
+// The hover tooltip of the hint and no-value icons of the tiles and codecs.
 import React, {
   useLayoutEffect, useRef, useState
 } from "react";
@@ -6,10 +7,12 @@ import styles from "../stream-info/index.module.css";
 interface TooltipProps {
   icon: React.ReactNode;
   text: string;
+  // The shown text's class; where it puts the text is where the tooltip is then fixed.
   visibleClassName: string;
   hiddenClassName: string;
 }
 
+// An icon whose text shows while the pointer is over it; the two classes are the text's shown and hidden looks.
 export const Tooltip: React.FC<TooltipProps> = ({
   icon,
   text,

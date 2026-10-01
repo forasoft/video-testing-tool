@@ -62,7 +62,8 @@ describe("ProblemEngine", () => {
   });
 
   it("refreshes a closed card until 15 s after the end, then leaves it", () => {
-    const describe = vi.fn(lossDetector().describe);
+    const detector = lossDetector();
+    const describe = vi.fn(detector.describe.bind(detector));
     const { problems } = runDetectors([lossDetector({ describe })], lossAt(10, 14, 60));
 
     // The chart covers the problem ± 15 s: 10 − 15 … 14 + 15.
@@ -74,7 +75,8 @@ describe("ProblemEngine", () => {
   });
 
   it("keeps describing a closed problem that is not settled", () => {
-    const describe = vi.fn(lossDetector().describe);
+    const detector = lossDetector();
+    const describe = vi.fn(detector.describe.bind(detector));
     runDetectors([lossDetector({ describe, settled: () => false })], lossAt(10, 14, 60));
 
     expect(describe).toHaveBeenCalledTimes(60 - 11 + 1);

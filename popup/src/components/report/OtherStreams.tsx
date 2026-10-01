@@ -1,3 +1,4 @@
+// The Other streams card of the Report: the page's received videos side by side.
 import React from "react";
 import styles from "./Report.module.css";
 import { Goodness, StreamRow } from "../../../../shared/protocol";

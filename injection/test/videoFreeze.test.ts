@@ -33,7 +33,7 @@ const run = ({ freezes, segments = [], duration = 70, silent, media = {}, tasks 
   let now = 0;
   const state = (): MediaState => {
     const quiet = silent && now >= silent[0] && now < silent[1];
-    return { readyState: 4, decoder: "libvpx", lastPacketT: quiet ? (silent as [number, number])[0] : now - 0.02, ...media };
+    return { readyState: 4, decoder: "libvpx", lastPacketT: quiet ? silent[0] : now - 0.02, ...media };
   };
   const source = typeof freezes === "function" ? freezes : freezesOf(freezes);
   const longTasks = new LongTasks();

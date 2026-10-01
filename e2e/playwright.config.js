@@ -9,6 +9,7 @@
 // (`npm run stand:turn`). One test at a time: the calls share the stand's network shaper and the machine's CPU.
 import { defineConfig } from "@playwright/test";
 
+// Read by `npm run e2e` and by repeat.js, which runs the @problem tests with --repeat-each and --retries=0.
 export default defineConfig({
   testDir: "./tests",
   timeout: 120_000,
@@ -21,6 +22,7 @@ export default defineConfig({
   reporter: [["list"]],
   globalSetup: "./global-setup.js",
   outputDir: "./test-results",
+  // The stand: reused when its /api/turn answers, else started from the project root.
   webServer: {
     command: "node stand/server.mjs",
     cwd: "..",

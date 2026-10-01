@@ -1,11 +1,24 @@
+// The Verdict card at the top of the Report, with Copy summary.
 import React, {
   useContext, useEffect, useRef, useState
 } from "react";
 import styles from "./Report.module.css";
-import { MESSAGES, SummaryTextMessage } from "../../../../shared/protocol";
+import {
+  MESSAGES, PreviousRunPart, SummaryTextMessage,
+} from "../../../../shared/protocol";
 import { SessionContext } from "../../context/SessionContext";
-import { postToWindow } from "../../utils/postToWindow";
+import { onPageMessage, postToWindow } from "../../utils/page";
 import { VerdictChip } from "../expanded/VerdictChip";
+
+// The pieces of the Previous run line with where each starts in it: a key that stays while the line does.
+const withOffsets = (parts: PreviousRunPart[]): { part: PreviousRunPart; offset: number }[] => {
+  let offset = 0;
+  return parts.map((part) => {
+    const keyed = { part, offset };
+    offset += part.text.length;
+    return keyed;
+  });
+};
 
 // The button says `Copied` this long after a copy (PRD §13.1).
 const COPIED_MS = 1000;
@@ -19,27 +32,23 @@ const useCopySummary = () => {
   const [manual, setManual] = useState<string | null>(null);
   const asked = useRef(false);
 
-  useEffect(() => {
-    const onMessage = (e: MessageEvent) => {
-      if (e.data?.id !== MESSAGES.VTT_SUMMARY_TEXT || !asked.current) {
-        return;
-      }
-      asked.current = false;
-      const { text } = e.data.data as SummaryTextMessage;
-      const written = navigator.clipboard?.writeText
-        ? navigator.clipboard.writeText(text)
-        : Promise.reject(new Error("No clipboard"));
-      written.then(() => {
-        setManual(null);
-        setCopiedAt(Date.now());
-      }, () => {
-        setCopiedAt(null);
-        setManual(text);
-      });
-    };
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, []);
+  useEffect(() => onPageMessage((message) => {
+    if (message.id !== MESSAGES.VTT_SUMMARY_TEXT || !asked.current) {
+      return;
+    }
+    asked.current = false;
+    const { text } = message.data as SummaryTextMessage;
+    // undefined outside a secure context; then the text is offered for copying by hand.
+    const clipboard = navigator.clipboard as Clipboard | undefined;
+    const written = clipboard ? clipboard.writeText(text) : Promise.reject(new Error("No clipboard"));
+    written.then(() => {
+      setManual(null);
+      setCopiedAt(Date.now());
+    }, () => {
+      setCopiedAt(null);
+      setManual(text);
+    });
+  }), []);
 
   useEffect(() => {
     if (copiedAt === null) {
@@ -91,9 +100,8 @@ export const VerdictCard: React.FC = () => {
       {report && (
         <p className={styles.previousRun} data-previous-run>
           {report.previousRun
-            ? report.previousRun.map(({ text, change }, i) => (
-              // The pieces are fixed by their place in the line.
-              <span key={i} className={change ? styles[change] : undefined} data-change={change}>{text}</span>
+            ? withOffsets(report.previousRun).map(({ part: { text, change }, offset }) => (
+              <span key={offset} className={change ? styles[change] : undefined} data-change={change}>{text}</span>
             ))
             : <span className={styles.firstRun}>First run on this site</span>}
         </p>

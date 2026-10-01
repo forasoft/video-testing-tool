@@ -11,6 +11,7 @@
 
 import dgram from "node:dgram";
 
+// A clean network; `queueMs` matters only with a rate limit.
 const DEFAULTS = Object.freeze({
   lossPct: 0,
   delayMs: 0,
@@ -20,14 +21,18 @@ const DEFAULTS = Object.freeze({
   blackout: false,
 });
 
+// A browser socket silent this long is forgotten, and its socket towards TURN closed.
 const CLIENT_IDLE_MS = 60_000;
 
+// A shaper on udp/listenPort in front of the TURN server at targetHost:targetPort. `set` takes a preset, `state` is
+// what GET /api/net answers: the preset, packets forwarded and dropped, browser sockets seen.
 export function createShapingProxy({ listenPort, targetHost, targetPort, log = () => {} }) {
   let params = { ...DEFAULTS };
   const counters = { forwarded: 0, dropped: 0 };
   const clients = new Map();
   const front = dgram.createSocket("udp4");
 
+  // Browser → TURN: forwarded at once, unshaped.
   front.on("message", (msg, rinfo) => {
     const key = `${rinfo.address}:${rinfo.port}`;
     let client = clients.get(key);
@@ -40,6 +45,8 @@ export function createShapingProxy({ listenPort, targetHost, targetPort, log = (
   });
   front.on("error", (err) => log(`shaper: ${err.message}`));
 
+  // Each browser socket gets a socket of its own towards TURN, which tells its clients apart by their address; what
+  // TURN sends to that socket goes back, shaped, to that browser socket.
   function createClient(rinfo) {
     const client = {
       upstream: dgram.createSocket("udp4"),
@@ -53,6 +60,8 @@ export function createShapingProxy({ listenPort, targetHost, targetPort, log = (
     return client;
   }
 
+  // Drops the packet (blackout, random loss, a full queue) or sends it after its wait in the queue, the delay and the
+  // jitter. The rate limit is a queue per browser socket: `bucket.nextFree` is when its link is free again.
   function shape(bucket, msg, send) {
     if (params.blackout || (params.lossPct > 0 && Math.random() * 100 < params.lossPct)) {
       counters.dropped += 1;
@@ -83,6 +92,7 @@ export function createShapingProxy({ listenPort, targetHost, targetPort, log = (
     }
   }
 
+  // Browser sockets of ended calls are forgotten after CLIENT_IDLE_MS.
   const sweep = setInterval(() => {
     const now = Date.now();
     for (const [key, client] of clients) {
@@ -104,6 +114,7 @@ export function createShapingProxy({ listenPort, targetHost, targetPort, log = (
         });
       });
     },
+    // A preset replaces the previous one as a whole (a missing field takes its default); rate limit queues restart.
     set(next) {
       params = { ...DEFAULTS, ...sanitize(next) };
       for (const client of clients.values()) client.fromTurn.nextFree = 0;
@@ -123,6 +134,7 @@ export function createShapingProxy({ listenPort, targetHost, targetPort, log = (
   };
 }
 
+// The preset's numbers clamped to their ranges; one that is missing or not a number is left out: it takes its default.
 function sanitize(input = {}) {
   const num = (value, min, max) => {
     const n = Number(value);

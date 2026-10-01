@@ -1,3 +1,4 @@
+// The session in Compact and Mini: the status row, the seven tiles and the codecs row.
 import React, { useContext } from "react";
 import styles from "./index.module.css";
 import { SessionContext } from "../../context/SessionContext";
@@ -61,6 +62,7 @@ const tiles: Tile[] = [
 interface TileProps {
   tile: Tile;
   sample: SampleMessage | null;
+  // Compact; in Mini a tile is its icon and value only.
   fullSize: boolean;
 }
 
@@ -113,6 +115,7 @@ const FpsTile: React.FC<TileProps> = (props) => {
   return <TileRow {...props} view={tile.view({ sample, fps })} />;
 };
 
+// Mini keeps only the icons and values: no labels, hints, sparklines or connection chip.
 const StreamInfo: React.FC = () => {
   useViewPerf("tiles");
   const t = useTranslation();

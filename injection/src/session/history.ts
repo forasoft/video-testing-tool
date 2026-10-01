@@ -5,13 +5,15 @@ import { EventMessage, GetHistoryMessage, HistoryMessage, ProblemMessage } from 
 import { SampleBuffer } from "./buffer";
 
 // Series the timeline charts draw and the cursor tooltip shows (PRD §11.2, §11.3).
-export const HISTORY_FIELDS: SampleField[] = [
+const HISTORY_FIELDS: SampleField[] = [
   "v_bitrate", "avail_in", "v_fps_r", "v_loss", "d_net", "d_jb", "d_decode", "d_render", "d_video",
 ];
 
-export type HistorySeries = Record<string, (number | null)[]>;
+// Series by field — `t` and HISTORY_FIELDS — a value per point, oldest first.
+type HistorySeries = Record<string, (number | null)[]>;
 
-export interface HistorySource {
+// What VTT_HISTORY is made from: the session's samples, events, problems and hidden ranges.
+interface HistorySource {
   buffer: SampleBuffer;
   events: EventMessage[];
   problems: ProblemMessage[];
@@ -21,6 +23,7 @@ export interface HistorySource {
 
 const round = (t: number) => Math.round(t * 1000) / 1000;
 
+// Mean of the non-null values; null when every value is null.
 const mean = (values: (number | null)[]): number | null => {
   const present = values.filter((v): v is number => v !== null);
   return present.length ? present.reduce((sum, v) => sum + v, 0) / present.length : null;

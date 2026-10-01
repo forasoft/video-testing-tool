@@ -1,3 +1,5 @@
+// URLs of the files the page offers to download (the export of a session).
+
 interface IProps {
   data: string;
   mimeType: string;

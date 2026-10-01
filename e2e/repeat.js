@@ -10,9 +10,11 @@ import { fileURLToPath } from "node:url";
 const e2e = path.dirname(fileURLToPath(import.meta.url));
 const times = Number(process.argv[2]) || 10;
 const REQUIRED_SHARE = 0.9;
+// Where lib/checks.js appends the checks of the runs (E2E_CHECKS_FILE); removed once they are read.
 const checks = path.join(os.tmpdir(), `streamtest-e2e-checks-${process.pid}.jsonl`);
 
 const started = Date.now();
+// The load average (1, 5, 15 min), printed before and after: a loaded machine misses thresholds more often.
 const load = () => os.loadavg().map((v) => v.toFixed(1)).join(" ");
 console.log(`e2e:repeat — every @problem scenario ×${times}, no retries; load average ${load()}`);
 const run = spawnSync("npx", ["playwright", "test", "--grep", "@problem", `--repeat-each=${times}`, "--retries=0"], {
@@ -50,6 +52,7 @@ rows.forEach((row) => {
   }
 });
 
+// The table in Markdown, a row with fewer matches than needed marked ✗; then every miss with what was found instead.
 const needed = Math.ceil(times * REQUIRED_SHARE);
 const table = [...rows.values()];
 console.log(`\n| Problem (scenario) | Matches of ${times} |\n|---|---|`);

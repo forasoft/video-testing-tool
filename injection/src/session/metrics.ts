@@ -10,11 +10,14 @@ import {
 } from "shared/constants/sampleFields";
 import { RtpStats, Snapshot } from "./extract";
 
+// Loss and concealment are counted over the last this many samples, that is seconds.
 export const WINDOW_S = 5;
 
+// A finite number from a report field, else null.
 const num = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
+// A report field times a factor — a unit change, e.g. s → ms; null without the field.
 const times = (value: unknown, factor: number): number | null => {
   const n = num(value);
   return n === null ? null : n * factor;
@@ -44,7 +47,7 @@ const streamDelta = (cur: RtpStats | undefined, prev: RtpStats | undefined, key:
   sameStream(cur, prev) ? delta(cur, prev, key) : null;
 
 // Δ key / Δ time in seconds.
-export const perSecond = (
+const perSecond = (
   cur: RtpStats | undefined,
   prev: RtpStats | undefined,
   key: string
@@ -78,11 +81,13 @@ export const bitrateKbps = (cur?: RtpStats, prev?: RtpStats): number | null => {
 export class WindowPct {
   entries: { part: number; total: number }[] = [];
 
+  // Starts the window over; returns the null that a sample without data shows.
   reset(): null {
     this.entries = [];
     return null;
   }
 
+  // Adds a sample's part and total: the window's share, %, clamped at 0; null while its total is 0.
   push(part: number, total: number): number | null {
     this.entries.push({ part, total });
     if (this.entries.length > WINDOW_S) {
@@ -111,7 +116,7 @@ export const pushLoss = (window: WindowPct, cur?: RtpStats, prev?: RtpStats): nu
 };
 
 // concealedSamples Δ / totalSamplesReceived Δ × 100, window 5 s.
-export const pushConcealed = (window: WindowPct, cur?: RtpStats, prev?: RtpStats): number | null => {
+const pushConcealed = (window: WindowPct, cur?: RtpStats, prev?: RtpStats): number | null => {
   const concealed = streamDelta(cur, prev, "concealedSamples");
   const total = streamDelta(cur, prev, "totalSamplesReceived");
 
@@ -121,6 +126,7 @@ export const pushConcealed = (window: WindowPct, cur?: RtpStats, prev?: RtpStats
   return window.push(concealed, total);
 };
 
+// The index of a categorical value in its list, case-insensitive, as the sample stores it; null when not listed.
 const indexOf = (list: readonly string[], value: unknown): number | null => {
   if (typeof value !== "string") {
     return null;
@@ -141,6 +147,7 @@ export const pathType = (local?: RtpStats, remote?: RtpStats): string | undefine
 export const pathProtocol = (local?: RtpStats): string | undefined =>
   (local?.relayProtocol ?? local?.protocol) as string | undefined;
 
+// `VP8` from the codec's mimeType `video/VP8`; undefined without a codec report.
 export const codecName = (codec?: RtpStats): string | undefined =>
   typeof codec?.mimeType === "string" ? codec.mimeType.split("/")[1] : undefined;
 
@@ -164,7 +171,7 @@ export const renderDelay = (
   assembly: number | null,
   decode: number | null
 ): number | null => {
-  if (!frames || !frames.fps) {
+  if (!frames?.fps) {
     return null;
   }
   if (frames.latency === null) {
@@ -177,6 +184,7 @@ export const renderDelay = (
   return Math.max(0, frames.latency - (jitterBuffer - (assembly ?? 0)) - (decode ?? 0));
 };
 
+// The required part plus the optional ones (a missing one counts as 0); null without the required part.
 const sumOrNull = (required: number | null, ...optional: (number | null)[]): number | null =>
   required === null ? null : optional.reduce((sum: number, value) => sum + (value ?? 0), required);
 
@@ -186,6 +194,7 @@ const sumKnown = (values: (number | null)[]): number | null => {
   return known.length ? known.reduce((sum, value) => sum + value, 0) : null;
 };
 
+// A layer's frame area, px; 0 when its size is not reported.
 const pixels = (layer: RtpStats): number => (num(layer.frameWidth) ?? 0) * (num(layer.frameHeight) ?? 0);
 
 // The largest layer of the outgoing video that is being sent.
@@ -198,7 +207,8 @@ export const topLayer = (layers: RtpStats[] = []): RtpStats | undefined => layer
 export const outgoing = (cur: RtpStats[] = [], prev: RtpStats[] = []): Pick<SampleValues,
   "out_bitrate" | "out_target" | "out_w" | "out_h" | "out_fps" | "out_limit" | "out_encoder"> => {
   const top = topLayer(cur);
-  const main = top ?? cur[0];
+  // Without a top layer — the first one; with no outgoing video there is none.
+  const main = top ?? (cur.length > 0 ? cur[0] : undefined);
   const efficient = main?.powerEfficientEncoder;
   return {
     out_bitrate: sumKnown(cur.map((layer) => {
@@ -214,6 +224,7 @@ export const outgoing = (cur: RtpStats[] = [], prev: RtpStats[] = []): Pick<Samp
   };
 };
 
+// A sample with every field null: the base of each sample, and all of a second without data.
 export const emptySample = (): SampleValues => {
   const sample = {} as SampleValues;
   SAMPLE_FIELDS.forEach((field) => {
@@ -222,84 +233,110 @@ export const emptySample = (): SampleValues => {
   return sample;
 };
 
+// What the page counts itself: frame rate and freezes from rVFC, the hidden share, long tasks.
+const pageValues = ({ frames, longTasks }: Snapshot): Partial<SampleValues> => ({
+  v_fps_r: frames ? frames.fps : null,
+  v_freeze_pct: frames && frames.sessionMs > 0 ? (frames.freezeMs / frames.sessionMs) * 100 : null,
+  hidden: frames ? frames.hidden : null,
+  longtask_max: longTasks ? longTasks.max : null,
+  longtask_sum: longTasks ? longTasks.sum : null,
+});
+
+// The parts of the video and audio delay (PRD §7): network — half the RTT, jitter buffer, decode, render.
+const delays = (s: SampleValues): Partial<SampleValues> => {
+  const net = times(s.rtt, 0.5);
+  const render = s.v_render ?? 0;
+  return {
+    d_net: net,
+    d_jb: s.v_jb,
+    d_decode: s.v_decode,
+    d_render: render,
+    d_video: sumOrNull(s.v_jb, net, s.v_decode, render),
+    d_audio: sumOrNull(s.a_jb, net),
+  };
+};
+
 // Keeps the previous snapshot and the sliding windows between calls.
 export class Metrics {
   prev: Snapshot | undefined;
   videoLoss = new WindowPct();
   audioLoss = new WindowPct();
   concealed = new WindowPct();
+  // The pair seen last and its changes, counted here when the transport has no counter (countPairChanges).
   pairId: string | undefined;
   pairChanges = 0;
 
+  // The sample of second `t` from this snapshot and the previous one (PRD §6.3, formulas §7).
   next(cur: Snapshot, t: number): SampleValues {
-    const prev = this.prev;
-    const s = emptySample();
-    const { video, audio, pair, local, remote, element } = cur;
-    const pv = prev?.video;
-    const pa = prev?.audio;
-
-    s.t = t;
-
-    s.v_bitrate = bitrateKbps(video, pv);
-    s.v_fps_r = cur.frames ? cur.frames.fps : null;
-    s.v_fps_dec = perSecond(video, pv, "framesDecoded");
-    s.v_fps_recv = perSecond(video, pv, "framesReceived");
-    s.v_w = element && element.videoWidth > 0 ? element.videoWidth : null;
-    s.v_h = element && element.videoHeight > 0 ? element.videoHeight : null;
-    s.v_loss = pushLoss(this.videoLoss, video, pv);
-    s.v_jitter = times(video?.jitter, 1000);
-    s.v_nack = streamDelta(video, pv, "nackCount");
-    s.v_pli = streamDelta(video, pv, "pliCount");
-    s.v_qp = perItem(video, pv, "qpSum", "framesDecoded");
-    s.v_frames_dropped = droppedFrames(cur, prev);
-    s.v_discarded = streamDelta(video, pv, "packetsDiscarded");
-    s.v_freeze_cnt = streamDelta(video, pv, "freezeCount");
-    s.v_freeze_ms = times(streamDelta(video, pv, "totalFreezesDuration"), 1000);
-    s.v_freeze_pct = cur.frames && cur.frames.sessionMs > 0
-      ? (cur.frames.freezeMs / cur.frames.sessionMs) * 100
-      : null;
-    s.hidden = cur.frames ? cur.frames.hidden : null;
-    s.longtask_max = cur.longTasks ? cur.longTasks.max : null;
-    s.longtask_sum = cur.longTasks ? cur.longTasks.sum : null;
-    s.v_jb = perItem(video, pv, "jitterBufferDelay", "jitterBufferEmittedCount", 1000);
-    s.v_decode = perItem(video, pv, "totalDecodeTime", "framesDecoded", 1000);
-    s.v_render = renderDelay(
-      cur.frames,
-      s.v_jb,
-      perItem(video, pv, "totalAssemblyTime", "framesDecoded", 1000),
-      s.v_decode
-    );
-    s.v_playout_ts = num(video?.estimatedPlayoutTimestamp);
-    s.v_codec_id = indexOf(VIDEO_CODECS, codecName(cur.videoCodec));
-
-    s.a_bitrate = bitrateKbps(audio, pa);
-    s.a_loss = pushLoss(this.audioLoss, audio, pa);
-    s.a_jitter = times(audio?.jitter, 1000);
-    s.a_jb = perItem(audio, pa, "jitterBufferDelay", "jitterBufferEmittedCount", 1000);
-    s.a_concealed_pct = pushConcealed(this.concealed, audio, pa);
-    s.a_playout_ts = num(audio?.estimatedPlayoutTimestamp);
-
-    s.av_offset = s.a_playout_ts === null || s.v_playout_ts === null
-      ? null
-      : s.a_playout_ts - s.v_playout_ts;
-
-    s.rtt = times(pair?.currentRoundTripTime, 1000);
-    s.avail_in = times(pair?.availableIncomingBitrate, 1 / 1000);
-    s.pair_type = indexOf(CANDIDATE_TYPES, pathType(local, remote));
-    s.pair_proto = indexOf(PROTOCOLS, pathProtocol(local));
-    s.pair_changes = this.countPairChanges(cur);
-
-    Object.assign(s, outgoing(cur.outbound, prev?.outbound));
-
-    s.d_net = times(s.rtt, 0.5);
-    s.d_jb = s.v_jb;
-    s.d_decode = s.v_decode;
-    s.d_render = s.v_render ?? 0;
-    s.d_video = sumOrNull(s.d_jb, s.d_net, s.d_decode, s.d_render);
-    s.d_audio = sumOrNull(s.a_jb, s.d_net);
-
+    const s: SampleValues = {
+      ...emptySample(),
+      t,
+      ...this.video(cur),
+      ...pageValues(cur),
+      ...this.audio(cur),
+      ...this.path(cur),
+      ...outgoing(cur.outbound, this.prev?.outbound),
+    };
+    s.av_offset = s.a_playout_ts === null || s.v_playout_ts === null ? null : s.a_playout_ts - s.v_playout_ts;
+    Object.assign(s, delays(s));
     this.prev = cur;
     return s;
+  }
+
+  // The received video: rates, size, losses, the decoder's counters and its part of the delay.
+  private video(cur: Snapshot): Partial<SampleValues> {
+    const { video, element } = cur;
+    const pv = this.prev?.video;
+    const jitterBuffer = perItem(video, pv, "jitterBufferDelay", "jitterBufferEmittedCount", 1000);
+    const decode = perItem(video, pv, "totalDecodeTime", "framesDecoded", 1000);
+    const assembly = perItem(video, pv, "totalAssemblyTime", "framesDecoded", 1000);
+    return {
+      v_bitrate: bitrateKbps(video, pv),
+      v_fps_dec: perSecond(video, pv, "framesDecoded"),
+      v_fps_recv: perSecond(video, pv, "framesReceived"),
+      v_w: element && element.videoWidth > 0 ? element.videoWidth : null,
+      v_h: element && element.videoHeight > 0 ? element.videoHeight : null,
+      v_loss: pushLoss(this.videoLoss, video, pv),
+      v_jitter: times(video?.jitter, 1000),
+      v_nack: streamDelta(video, pv, "nackCount"),
+      v_pli: streamDelta(video, pv, "pliCount"),
+      v_qp: perItem(video, pv, "qpSum", "framesDecoded"),
+      v_frames_dropped: droppedFrames(cur, this.prev),
+      v_discarded: streamDelta(video, pv, "packetsDiscarded"),
+      v_freeze_cnt: streamDelta(video, pv, "freezeCount"),
+      v_freeze_ms: times(streamDelta(video, pv, "totalFreezesDuration"), 1000),
+      v_jb: jitterBuffer,
+      v_decode: decode,
+      v_render: renderDelay(cur.frames, jitterBuffer, assembly, decode),
+      v_playout_ts: num(video?.estimatedPlayoutTimestamp),
+      v_codec_id: indexOf(VIDEO_CODECS, codecName(cur.videoCodec)),
+    };
+  }
+
+  // The received audio: rate, losses, jitter buffer, concealment and its playout time for the A/V offset.
+  private audio(cur: Snapshot): Partial<SampleValues> {
+    const { audio } = cur;
+    const pa = this.prev?.audio;
+    return {
+      a_bitrate: bitrateKbps(audio, pa),
+      a_loss: pushLoss(this.audioLoss, audio, pa),
+      a_jitter: times(audio?.jitter, 1000),
+      a_jb: perItem(audio, pa, "jitterBufferDelay", "jitterBufferEmittedCount", 1000),
+      a_concealed_pct: pushConcealed(this.concealed, audio, pa),
+      a_playout_ts: num(audio?.estimatedPlayoutTimestamp),
+    };
+  }
+
+  // The selected candidate pair: RTT, incoming bandwidth, the path and how many times it changed.
+  private path(cur: Snapshot): Partial<SampleValues> {
+    const { pair, local, remote } = cur;
+    return {
+      rtt: times(pair?.currentRoundTripTime, 1000),
+      avail_in: times(pair?.availableIncomingBitrate, 1 / 1000),
+      pair_type: indexOf(CANDIDATE_TYPES, pathType(local, remote)),
+      pair_proto: indexOf(PROTOCOLS, pathProtocol(local)),
+      pair_changes: this.countPairChanges(cur),
+    };
   }
 
   // Cumulative number of selected-pair changes: the transport's own counter, or

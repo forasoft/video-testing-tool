@@ -15,8 +15,10 @@ export const SAMPLE_FIELDS = [
   "d_net", "d_jb", "d_decode", "d_render", "d_video", "d_audio",
 ] as const;
 
+// The name of one field: a column of the history buffer and of the export.
 export type SampleField = typeof SAMPLE_FIELDS[number];
 
+// One sample: every field, null where there is no data.
 export type SampleValues = Record<SampleField, number | null>;
 
 // The injection keeps the last 60 minutes of samples (PRD §6.4): the oldest second is overwritten.

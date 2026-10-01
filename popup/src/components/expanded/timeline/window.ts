@@ -4,19 +4,21 @@ import { BUFFER_SECONDS } from "../../../../../shared/constants/sampleFields";
 import { GetHistoryMessage } from "../../../../../shared/protocol";
 import { lastWindow, TimeWindow } from "./scale";
 
+// `Last 2 min` or `Whole session` of the window switch.
 export type WindowRange = "last2" | "whole";
 
-export const LAST_SPAN_S = 120;
+// The 2-minute window, s.
+const LAST_SPAN_S = 120;
 // Time labels every 20 s in the 2-minute window (PRD §11.2).
-export const LAST_TICK_S = 20;
+const LAST_TICK_S = 20;
 // Whole session: the first of these steps that gives at most 12 labels, so that there are 6–12.
-export const WHOLE_TICKS_S = [30, 60, 120, 300, 600];
+const WHOLE_TICKS_S = [30, 60, 120, 300, 600];
 const MAX_TICKS = 12;
 const MIN_TICKS = 6;
 // Whole session: at most this many points, about one per pixel of the plot.
-export const WHOLE_BUCKETS = 720;
+const WHOLE_BUCKETS = 720;
 // A dragged window asks for this much more on each side, so that a short drag needs no new answer.
-export const MARGIN_S = 60;
+const MARGIN_S = 60;
 
 // The whole session is at most as long as the history the injection keeps.
 export const spanOf = (range: WindowRange): number => (range === "whole" ? BUFFER_SECONDS : LAST_SPAN_S);
@@ -26,6 +28,7 @@ export const edgeOf = (live: boolean, end: number | null, now: number): number =
   live || end === null ? now : Math.min(end, now)
 );
 
+// The window of the range that ends at `edge`; while the session is shorter than the range, it starts at 0.
 export const windowOf = (range: WindowRange, edge: number): TimeWindow => lastWindow(edge, spanOf(range));
 
 // The right edge moved by dt seconds (later is positive): not before the kept history allows a
@@ -50,13 +53,16 @@ export const centerEdge = (from: number, to: number, range: WindowRange, now: nu
 // The problem card covers this much of the plots at their right (PRD §12.2: 400 px, 8 px from the
 // card's edge, which is 16 px from the plots); a problem is centered in the rest, but not closer
 // to the left edge than 15 % of the window.
-export const CARD_COVER_PX = 392;
+const CARD_COVER_PX = 392;
 const MIN_SHARE = 0.15;
 
+// Where a problem goes with its card open, as a share of the window from its left: the middle of what the card leaves
+// visible; the window's middle until the plots are measured.
 export const visibleCenter = (plotWidth: number): number => (
   plotWidth > 0 ? Math.min(0.5, Math.max(MIN_SHARE, (plotWidth - CARD_COVER_PX) / 2 / plotWidth)) : 0.5
 );
 
+// How many multiples of `step` fall inside the window.
 const tickCount = ({ from, to }: TimeWindow, step: number): number =>
   Math.floor(to / step + 1e-9) - Math.ceil(from / step - 1e-9) + 1;
 

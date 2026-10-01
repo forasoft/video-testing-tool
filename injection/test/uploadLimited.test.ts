@@ -17,7 +17,7 @@ const SENDING: Values = {
 };
 const LIBVPX: SenderInfo = { encoder: "libvpx", width: 640, height: 360 };
 
-const run = (segments: Segment[], { duration = 80, sender = LIBVPX, base = {} as Values } = {}) =>
+const run = (segments: Segment[], { duration = 80, sender = LIBVPX, base = {} } = {}) =>
   runDetectors([new UploadLimited(() => sender)], makeSamples({ duration, base: { ...STEADY, ...SENDING, ...base }, segments }));
 
 // PRD §12.3, problem 6.

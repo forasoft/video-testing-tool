@@ -20,20 +20,22 @@ export const nearestRow = (rows: SampleValues[], t: number, { from, to }: TimeWi
 // points of the whole session; at most 10 s after a gap in the data.
 const MAX_ROW_SPAN_S = 10;
 
+// The seconds (from, to] a row stands for: the tooltip lists the events and problems of them.
 export const rowSpan = (rows: SampleValues[], row: SampleValues): [number, number] => {
   const t = row.t as number;
-  const before = rows[rows.indexOf(row) - 1];
+  const index = rows.indexOf(row);
+  const before = index > 0 ? rows[index - 1] : undefined;
   const from = before && before.t !== null ? Math.max(before.t, t - MAX_ROW_SPAN_S) : t - 1;
   return [from, t];
 };
 
-// Names of the events of (from, to] for the tooltip.
-export const eventNames = (events: EventMessage[], [from, to]: [number, number]): string[] =>
-  events.filter((e) => e.t > from && e.t <= to).map((e) => e.label);
+// The events of (from, to].
+const eventsIn = (events: EventMessage[], [from, to]: [number, number]): EventMessage[] =>
+  events.filter((e) => e.t > from && e.t <= to);
 
-// Titles of the problems that go on in (from, to]; a problem that goes on lasts until now.
-export const problemNames = (problems: ProblemMessage[], [from, to]: [number, number], now: number): string[] =>
-  problems.filter((p) => p.tStart <= to && problemEnd(p, now) > from).map((p) => p.title);
+// The problems that go on in (from, to]; a problem that goes on lasts until now.
+const problemsIn = (problems: ProblemMessage[], [from, to]: [number, number], now: number): ProblemMessage[] =>
+  problems.filter((p) => p.tStart <= to && problemEnd(p, now) > from);
 
 const or = (value: number | null, format: (v: number) => string): string => (value === null ? "—" : format(value));
 
@@ -53,3 +55,25 @@ export const cursorLines = (row: SampleValues): string[] => {
     delay,
   ];
 };
+
+// A line of the tooltip with a key that stays with its subject: the metric, the event's number, the problem's id.
+export interface TooltipLine {
+  key: string;
+  text: string;
+}
+
+// The lines of cursorLines, in their order.
+const METRIC_KEYS = ["bitrate", "fps", "loss", "delay"];
+
+// The tooltip of the cursor (PRD §11.3): the metrics of its second, then the events and the problems of that second.
+export const tooltipLines = (
+  row: SampleValues,
+  events: EventMessage[],
+  problems: ProblemMessage[],
+  span: [number, number],
+  now: number,
+): TooltipLine[] => [
+  ...cursorLines(row).map((text, i) => ({ key: METRIC_KEYS[i], text })),
+  ...eventsIn(events, span).map((e) => ({ key: `event-${e.n}`, text: e.label })),
+  ...problemsIn(problems, span, now).map((p) => ({ key: `problem-${p.id}`, text: p.title })),
+];

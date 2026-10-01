@@ -1,3 +1,4 @@
+// A problem's card: over the Timeline's charts, or under the problem's row in the Report.
 import React from "react";
 import styles from "./ProblemCard.module.css";
 import { ProblemMessage } from "../../../../shared/protocol";
@@ -11,6 +12,7 @@ interface ProblemCardProps {
   problem: ProblemMessage;
   // Seconds from the session start: a problem that goes on lasts until now.
   now: number;
+  // Draws the Close button; a card of the Report has none, its row closes it.
   onClose?: () => void;
 }
 

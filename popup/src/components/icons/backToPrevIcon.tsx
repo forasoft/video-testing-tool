@@ -1,3 +1,4 @@
+// Icon of the Back to main button.
 import React from "react";
 
 export const BackToPrevIcon = () => (

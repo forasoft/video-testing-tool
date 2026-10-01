@@ -1,10 +1,11 @@
+// The ForaSoft logo of the Compact and Mini footer (`by ForaSoft`), drawn in the current text color.
 import React from "react";
 
-interface ExclamationIconProps {
+interface ForaSoftSecondaryProps {
   className: string;
 }
 
-export const ForaSoftSecondary: React.FC<ExclamationIconProps> = ({
+export const ForaSoftSecondary: React.FC<ForaSoftSecondaryProps> = ({
   className,
 }) => (
   <svg

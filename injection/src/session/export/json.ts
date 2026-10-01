@@ -11,12 +11,14 @@ import { codecName } from "../metrics";
 import { RunSummary } from "../lastRun";
 import { Distribution, FreezeStats, ReportStats } from "../report";
 
+// The file's `schema`: the format's name and version, for scripts that read it.
 export const SCHEMA = "streamtest-session/2";
 
+// The export files: JSON (PRD §15.1) and CSV (§15.2).
 export type ExportFormat = "json" | "csv";
 
 // A received track of the selected stream.
-export interface ExportTrack {
+interface ExportTrack {
   trackId: string | null;
   mid: string | null;
   ssrc: number | null;
@@ -63,7 +65,8 @@ export interface ExportSource {
   sdp: { local: string | null; remote: string | null };
 }
 
-export interface ExportProblem {
+// A problem as the file keeps it: the message with its card's rows and texts, without the chart series.
+interface ExportProblem {
   id: number;
   type: string;
   title: string;
@@ -78,9 +81,10 @@ export interface ExportProblem {
 }
 
 // Another stream of the page as the table shows it (PRD §13.4).
-export type ExportStream = Pick<StreamRow, "id" | "name" | "w" | "h" | "bitrate" | "loss" | "freezes">;
+type ExportStream = Pick<StreamRow, "id" | "name" | "w" | "h" | "bitrate" | "loss" | "freezes">;
 
-export interface SessionExport {
+// The JSON file (Appendix C, §22): the session's times as ISO strings, the samples column-wise.
+interface SessionExport {
   schema: typeof SCHEMA;
   extensionVersion: string;
   session: {
@@ -108,6 +112,7 @@ export interface SessionExport {
   previousRun: RunSummary | null;
 }
 
+// A non-empty string and a finite number of a report field, else null.
 const text = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
 const count = (value: unknown): number | null => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
@@ -171,7 +176,7 @@ export const exportSamples = (buffer: SampleBuffer): Record<SampleField, (number
 };
 
 // The Distribution with the numbers of the samples' precision.
-export const exportDistribution = (d: Distribution): Distribution => ({
+const exportDistribution = (d: Distribution): Distribution => ({
   v_bitrate: { p50: roundValue(d.v_bitrate.p50), p5: roundValue(d.v_bitrate.p5), min: roundValue(d.v_bitrate.min) },
   v_fps_r: { p50: roundValue(d.v_fps_r.p50), p5: roundValue(d.v_fps_r.p5), min: roundValue(d.v_fps_r.min) },
   v_loss: { p50: roundValue(d.v_loss.p50), p95: roundValue(d.v_loss.p95), max: roundValue(d.v_loss.max) },
@@ -179,7 +184,8 @@ export const exportDistribution = (d: Distribution): Distribution => ({
   rtt: { p50: roundValue(d.rtt.p50), p95: roundValue(d.rtt.p95), max: roundValue(d.rtt.max) },
 });
 
-export const exportProblem = (p: ProblemMessage): ExportProblem => ({
+// A problem message as the file keeps it.
+const exportProblem = (p: ProblemMessage): ExportProblem => ({
   id: p.id,
   type: p.type,
   title: p.title,
@@ -194,7 +200,7 @@ export const exportProblem = (p: ProblemMessage): ExportProblem => ({
 });
 
 // The streams other than the selected one: its own data is the rest of the file.
-export const exportStreams = (rows: StreamRow[]): ExportStream[] => rows
+const exportStreams = (rows: StreamRow[]): ExportStream[] => rows
   .filter((row) => !row.selected)
   .map(({
     id, name, w, h, bitrate, loss, freezes,
@@ -202,6 +208,7 @@ export const exportStreams = (rows: StreamRow[]): ExportStream[] => rows
     id, name, w, h, bitrate: roundValue(bitrate), loss: roundValue(loss), freezes: roundValue(freezes),
   }));
 
+// The JSON file from what the session knows; the samples and the Report's numbers are rounded by roundValue.
 export const sessionJson = (source: ExportSource): SessionExport => ({
   schema: SCHEMA,
   extensionVersion: source.extensionVersion,

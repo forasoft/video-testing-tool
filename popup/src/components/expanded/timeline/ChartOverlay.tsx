@@ -1,6 +1,8 @@
+// The pointer over the Timeline's charts: the cursor and its tooltip, a click on a problem, a drag in time.
 import React, { useRef, useState } from "react";
 import styles from "./Timeline.module.css";
 import { TimeWindow } from "./scale";
+import { TooltipLine } from "./tooltip";
 import { useWidth } from "./useWidth";
 
 // A press that moves less than this is a click, not a drag.
@@ -13,7 +15,7 @@ const TOOLTIP_HEIGHT = 96;
 export interface Cursor {
   t: number;
   title: string;
-  lines: string[];
+  lines: TooltipLine[];
 }
 
 interface ChartOverlayProps {
@@ -66,7 +68,7 @@ export const ChartOverlay: React.FC<ChartOverlayProps> = ({
         onDragStart();
       }
     }
-    if (!current || !current.moved) {
+    if (!current?.moved) {
       if (width > 0) {
         setPointerY(e.clientY - box.top);
         onHover(shown.from + ((e.clientX - box.left) / width) * span);
@@ -96,7 +98,7 @@ export const ChartOverlay: React.FC<ChartOverlayProps> = ({
   const visible = x !== null && x >= 0 && x <= width;
   const height = ref.current?.clientHeight ?? 0;
   // To the right of the cursor, or to the left of it in the right half.
-  const left = visible && (x as number) > width / 2;
+  const left = visible && x > width / 2;
 
   return (
     <div
@@ -112,22 +114,21 @@ export const ChartOverlay: React.FC<ChartOverlayProps> = ({
     >
       {visible && cursor && (
         <>
-          <div className={styles.cursor} style={{ left: x as number }} data-cursor={cursor.t} />
+          <div className={styles.cursor} style={{ left: x }} data-cursor={cursor.t} />
           <div
             className={styles.tooltip}
             role="tooltip"
             style={{
               top: Math.max(0, Math.min(pointerY - TOOLTIP_HEIGHT / 2, height - TOOLTIP_HEIGHT)),
               ...(left
-                ? { right: width - (x as number) + TOOLTIP_GAP }
-                : { left: (x as number) + TOOLTIP_GAP }),
+                ? { right: width - x + TOOLTIP_GAP }
+                : { left: x + TOOLTIP_GAP }),
             }}
             data-cursor-tooltip
           >
             <strong className={styles.tooltipTitle}>{cursor.title}</strong>
-            {/* By position: two events of a second can have the same name. */}
-            {cursor.lines.map((line, i) => (
-              <span key={i} className={styles.tooltipLine}>{line}</span>
+            {cursor.lines.map((line) => (
+              <span key={line.key} className={styles.tooltipLine}>{line.text}</span>
             ))}
           </div>
         </>

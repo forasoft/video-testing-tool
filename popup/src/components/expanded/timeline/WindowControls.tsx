@@ -1,3 +1,4 @@
+// The controls of the Timeline's time window, at the right of its verdict row.
 import React from "react";
 import styles from "./Timeline.module.css";
 import { WindowRange } from "./window";

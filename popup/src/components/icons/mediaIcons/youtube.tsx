@@ -1,3 +1,4 @@
+// Icon of the YouTube link.
 import React from "react";
 
 export const YoutubeIcon: React.FC = () => (

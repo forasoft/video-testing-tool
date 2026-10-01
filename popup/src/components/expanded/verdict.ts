@@ -4,9 +4,11 @@ import {
   ConnectionInfo, Goodness, SessionState, VerdictInfo
 } from "../../../../shared/protocol";
 
-export type Tone = "green" | "yellow" | "red";
+// The chip's color: green — OK, yellow — Degraded, red — Severe or Disconnected.
+type Tone = "green" | "yellow" | "red";
 
-export interface Chip {
+// A verdict chip as drawn: the text after its dot and its color.
+interface Chip {
   text: string;
   tone: Tone;
 }
@@ -28,32 +30,40 @@ export const verdictChip = (verdict: VerdictInfo | undefined, state: SessionStat
 
 // A piece of the connection line; `goodness` — the color of the piece. Values are monospace (PRD
 // §8.3), separators and labels (`plain`) are set in the text font, which keeps the line short.
-export interface LinePart {
+interface LinePart {
+  // The part's role in the line (`video`, `rtt`, `separator-rtt`…): the key of its element.
+  key: string;
   text: string;
   goodness?: Goodness;
   plain?: boolean;
 }
 
-const SEPARATOR: LinePart = { text: " · ", plain: true };
+const SEPARATOR = " · ";
 
 // `H264 · opus · srflx→relay · udp · RTT 92 ms`: `→{remote type}` in the color of the connection
 // path, `RTT {n} ms` in the color of the RTT; pieces the browser does not report are left out.
 export const connectionLine = (connection: ConnectionInfo, rttGoodness?: Goodness): LinePart[] => {
   const groups: LinePart[][] = [
-    [{ text: connection.videoCodec ?? "—" }],
-    [{ text: connection.audioCodec ?? "—" }],
+    [{ key: "video", text: connection.videoCodec ?? "—" }],
+    [{ key: "audio", text: connection.audioCodec ?? "—" }],
   ];
   if (connection.localType && connection.remoteType) {
-    groups.push([{ text: connection.localType }, { text: `→${connection.remoteType}`, goodness: connection.goodness }]);
+    groups.push([
+      { key: "local", text: connection.localType },
+      { key: "remote", text: `→${connection.remoteType}`, goodness: connection.goodness },
+    ]);
     if (connection.proto) {
-      groups.push([{ text: connection.proto }]);
+      groups.push([{ key: "proto", text: connection.proto }]);
     }
   }
   if (connection.rttMs !== null) {
     groups.push([
-      { text: "RTT ", goodness: rttGoodness, plain: true },
-      { text: `${Math.round(connection.rttMs)} ms`, goodness: rttGoodness },
+      { key: "rtt-label", text: "RTT ", goodness: rttGoodness, plain: true },
+      { key: "rtt", text: `${Math.round(connection.rttMs)} ms`, goodness: rttGoodness },
     ]);
   }
-  return groups.flatMap((group, i) => (i === 0 ? group : [SEPARATOR, ...group]));
+  // A separator before every group but the first, keyed by the group it opens.
+  return groups.flatMap((group, i) => (i === 0
+    ? group
+    : [{ key: `separator-${group[0].key}`, text: SEPARATOR, plain: true }, ...group]));
 };

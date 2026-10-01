@@ -1,3 +1,4 @@
+// The connection chip of Compact (Mini has none): the type of the connection path at a glance.
 import React from "react";
 import styles from "./ConnectionChip.module.css";
 import { ConnectionInfo } from "../../../../shared/protocol";
@@ -19,7 +20,7 @@ export const ConnectionChip: React.FC<ConnectionChipProps> = ({ connection, onCl
 
   return (
     <span className={styles.wrapper} data-connection-chip>
-      <button type="button" className={`${styles.chip} ${tone}`} aria-describedby="vtt-connection-tooltip" onClick={onClick}>
+      <button type="button" className={`${styles.chip} ${tone}`} aria-describedby={connection.tooltip.length > 0 ? "vtt-connection-tooltip" : undefined} onClick={onClick}>
         <span className={styles.dot} aria-hidden="true" />
         {connection.type}
       </button>

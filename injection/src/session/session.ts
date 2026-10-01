@@ -50,22 +50,24 @@ import { sessionStatus } from "./status";
 import { elementOf, OtherStreams, STREAMS_EVERY_SAMPLES } from "./streams";
 import { verdict } from "./verdict";
 
+// A sample a second; Frame rate (VTT_FPS) is sent four times a second.
 export const SAMPLE_INTERVAL_MS = 1000;
-export const FPS_INTERVAL_MS = 250;
+const FPS_INTERVAL_MS = 250;
 // getStats() rejected this many times in a row → the stream is gone (PRD §14.5).
 export const MAX_STATS_ERRORS = 3;
 
 // __vtt.debug.fastForward() replays in steps this long, ms: shorter than a long task, so the page keeps rendering.
-export const FORWARD_STEP_MS = 20;
+const FORWARD_STEP_MS = 20;
 
 // Why a live session became disconnected (PRD §14.3).
-export type DisconnectReason =
+type DisconnectReason =
   | "getStats rejected"
   | "connection closed"
   | "track ended"
   | "video source changed"
   | "not recovered";
 
+// What a session is started on: the selected connection, its <video> and the selected stream's tracks.
 interface ISessionProps {
   peerConnection: RTCPeerConnection;
   videoElement: HTMLVideoElement;
@@ -86,15 +88,16 @@ export interface FastForward {
 
 // V8 keeps the session's objects in about 2.3 times the length of their JSON (measured on the stand after
 // fastForward(3600): 0.64 MB of heap for 0.28 MB of JSON); the estimate takes a little more.
-export const HEAP_PER_JSON_CHAR = 2.5;
+const HEAP_PER_JSON_CHAR = 2.5;
 
 // The session's data kept in the page, bytes: the sample buffer (typed arrays) and its objects — events,
 // problems with their cards, long tasks, freezes — estimated by the length of their JSON.
-export interface SessionMemory {
+interface SessionMemory {
   bufferBytes: number;
   objectsBytes: number;
 }
 
+// A session as the rest of the injection sees it: its state and data, the answers to the panel and the controls.
 export interface Session {
   // The selected connection.
   peer: RTCPeerConnection;
@@ -131,6 +134,16 @@ const readSdp = (pc: RTCPeerConnection): ExportSource["sdp"] => ({
   remote: pc.remoteDescription?.sdp ?? null,
 });
 
+// What the Video freeze detector needs besides the sample: the element's state, the decoder and the last packet.
+const mediaState = (snapshot: Snapshot, element: ElementInfo, lastPacketT: number | null): MediaState => {
+  const decoder = snapshot.video?.decoderImplementation;
+  return {
+    readyState: element.readyState,
+    decoder: typeof decoder === "string" && decoder !== "" ? decoder : null,
+    lastPacketT,
+  };
+};
+
 let lastSession: Session | null = null;
 
 // The latest session in any state: its data is kept until the page is left.
@@ -138,8 +151,9 @@ export const getLastSession = (): Session | null => lastSession;
 
 // The latest session while it collects data.
 export const getActiveSession = (): Session | null =>
-  lastSession && lastSession.state() === "live" ? lastSession : null;
+  lastSession?.state() === "live" ? lastSession : null;
 
+// Starts a session on the selected stream: the first poll at once (on `firstReport` when given), then one a second.
 export const startSession = ({
   peerConnection,
   videoElement,
@@ -147,12 +161,14 @@ export const startSession = ({
   firstReport,
   onDisconnected,
 }: ISessionProps): Session => {
+  // The start in performance.now() and in ms since the epoch; fastForward moves the latter back.
   const startedAt = performance.now();
   let startedAtMs = Date.now();
   // Time skipped by __vtt.debug.fastForward(): the session's clock runs this far ahead of performance.now().
   let skippedMs = 0;
   // A performance.now() time → ms from the session start.
   const since = (now: number) => now - startedAt + skippedMs;
+  // The video's source at the start: another one means the stream is gone.
   const srcObject = videoElement.srcObject;
   const selector = createSelector(peerConnection, tracks);
   const metrics = new Metrics();
@@ -162,18 +178,25 @@ export const startSession = ({
   const stopLongTasks = observeLongTasks(longTasks, since);
   // null when the browser does not report long tasks.
   const tasksBetween = (from: number, to: number) => (stopLongTasks ? longTasks.between(from, to) : null);
+  // Now from the session start: ms, and seconds to the ms.
   const elapsed = () => since(performance.now());
   const seconds = () => Math.round(elapsed()) / 1000;
   const events = new EventLog((event) => postToPopup(MESSAGES.VTT_EVENT, event));
   const sampleEvents = new SampleEvents(events);
   let state: SessionState = "live";
+  // Read through functions: an await (getStats(), a replay step) may stop the session or start a fastForward,
+  // which a check made before it does not see.
+  const isLive = () => state === "live";
+  // The latest sample and its VTT_SAMPLE, which a disconnect sends again with the final verdict and status.
   let lastSample: SampleValues | null = null;
   let lastMessage: SampleMessage | null = null;
   // Kept through seconds without getStats data, so that the codecs do not blink.
   let connection: ConnectionInfo | undefined;
+  // When the last packet came over the selected pair, seconds from the start: the latest one known.
   let lastPacketT: number | null = null;
   // Of the latest sample: the last packet time is not carried over from older samples here.
   let media: MediaState = { readyState: null, decoder: null, lastPacketT: null };
+  // getStats() rejections in a row.
   let statsErrors = 0;
   // When the previous sample was taken, ms from the session start.
   let lastPollMs = 0;
@@ -185,11 +208,13 @@ export const startSession = ({
   let previous: RunSummary | null = lastRuns.forSession((run) => {
     previous = run;
   });
+  // This run's summary was saved, or must never be (fastForward).
   let saved = false;
   // __vtt.debug.fastForward() is replaying: the polls wait.
   let forwarding = false;
   // What goes to the panel right before the next VTT_SAMPLE while live, so that it draws both at once.
   let beforeSample: (() => void)[] = [];
+  // Sends what waits for the next sample: right before it, or when the session ends.
   const flushBeforeSample = () => {
     const queued = beforeSample;
     beforeSample = [];
@@ -216,7 +241,9 @@ export const startSession = ({
   let polls = 0;
   // performance.now() → seconds from the session start.
   const sinceStart = (ms: number | null | undefined) => (ms === null || ms === undefined ? null : Math.round(ms - startedAt) / 1000);
+  // What the first frame is counted from, seconds; null when the stream began before the session.
   const origin = streamOrigin(sinceStart(videoTiming?.remoteDescription), videoElement.readyState);
+  // The stream's start for Slow start as known now, seconds from the session start.
   const streamStart = (): StreamStart => ({
     origin,
     iceConnected: sinceStart(peerTiming?.iceConnected),
@@ -224,11 +251,14 @@ export const startSession = ({
     firstFrame: clock.firstFrame === null ? null : clock.firstFrame / 1000,
   });
 
+  // Records the end of the session at t, seconds from its start.
   const end = (t: number) => {
     endedT = t;
     endedAt = Date.now();
   };
 
+  // VTT_SESSION: the state, the start and the site, whether the connection sends media and the stream has audio,
+  // and the number of other streams.
   const sendState = () => {
     const message: SessionMessage = {
       state,
@@ -241,6 +271,7 @@ export const startSession = ({
     postToPopup(MESSAGES.VTT_SESSION, message);
   };
 
+  // The stream is gone: collecting stops, open problems end, the run is saved and the panel is told; once only.
   const disconnect = (reason: DisconnectReason) => {
     if (state !== "live") {
       return;
@@ -366,6 +397,51 @@ export const startSession = ({
     return null;
   };
 
+  // Collecting: live and not replaying recorded seconds (fastForward).
+  const collecting = () => isLive() && !forwarding;
+
+  // A second without data (getStats() rejected): a gap in the history, not the end of the session; three in a row
+  // end it.
+  const pollFailed = (t: number) => {
+    statsErrors += 1;
+    media = { ...media, lastPacketT: null };
+    lastPollMs = elapsed();
+    publish({ ...emptySample(), t });
+    if (statsErrors >= MAX_STATS_ERRORS) {
+      disconnect("getStats rejected");
+    }
+  };
+
+  // The snapshot of a report with what the page counts itself: frames, freezes, the hidden share, long tasks.
+  const snapshotOf = (report: RTCStatsReport, element: ElementInfo, now: number): Snapshot => {
+    const snapshot = extract(report, selector);
+    snapshot.element = element;
+    snapshot.frames = {
+      fps: now >= FPS_WINDOW_MS ? clock.fps(now) : null,
+      latency: clock.latency(now),
+      freezeMs: clock.freezeMs(now),
+      sessionMs: now,
+      hidden: clock.suspendedShare(lastPollMs, now),
+    };
+    snapshot.longTasks = stopLongTasks ? longTasks.drain() : null;
+    return snapshot;
+  };
+
+  // The other streams of the page, every 5 samples (PRD §13.4). The first poll only takes their counters: their
+  // bitrate and loss need two. The rows go with the next sample: the panel draws them together.
+  const pollOtherStreams = (report: RTCStatsReport, sample: SampleValues) => {
+    if (polls % STREAMS_EVERY_SAMPLES !== 0) {
+      return;
+    }
+    const first = polls === 0;
+    // It does not reject: a failing connection is left out of the rows.
+    void otherStreams.poll(report, sample, lastMessage?.goodness ?? {}).then((rows) => {
+      if (!first && isLive()) {
+        withNextSample(() => postToPopup(MESSAGES.VTT_STREAMS, rows));
+      }
+    });
+  };
+
   // `given` — a report already taken (the first poll's), else getStats() is asked.
   const poll = async (given?: RTCStatsReport) => {
     if (forwarding) {
@@ -381,64 +457,35 @@ export const startSession = ({
     try {
       report = given ?? await getStats(peerConnection);
     } catch {
-      if (state !== "live") {
-        return;
-      }
-      // A second without data: a gap in the history, not the end of the session.
-      statsErrors += 1;
-      media = { ...media, lastPacketT: null };
-      lastPollMs = elapsed();
-      publish({ ...emptySample(), t });
-      if (statsErrors >= MAX_STATS_ERRORS) {
-        disconnect("getStats rejected");
+      // A fastForward begun while getStats() was answering replays its own seconds: no empty one goes among them.
+      if (collecting()) {
+        pollFailed(t);
       }
       return;
     }
-    if (state !== "live" || forwarding) {
+    if (!collecting()) {
       return;
     }
     statsErrors = 0;
     const begin = performance.now();
     const now = elapsed();
-    const snapshot = extract(report, selector);
     const element = readElement(videoElement);
-    snapshot.element = element;
+    const snapshot = snapshotOf(report, element, now);
     lastSnapshot = snapshot;
-    snapshot.frames = {
-      fps: now >= FPS_WINDOW_MS ? clock.fps(now) : null,
-      latency: clock.latency(now),
-      freezeMs: clock.freezeMs(now),
-      sessionMs: now,
-      hidden: clock.suspendedShare(lastPollMs, now),
-    };
-    snapshot.longTasks = stopLongTasks ? longTasks.drain() : null;
     lastPollMs = now;
     const sample = metrics.next(snapshot, t);
     connection = connectionInfo(snapshot, sample.rtt);
     const packetT = lastPacketTime(snapshot.pair, t);
     lastPacketT = packetT ?? lastPacketT;
-    const decoder = snapshot.video?.decoderImplementation;
-    media = {
-      readyState: element.readyState,
-      decoder: typeof decoder === "string" && decoder !== "" ? decoder : null,
-      lastPacketT: packetT,
-    };
+    media = mediaState(snapshot, element, packetT);
     publish(sample, element);
-    // The first poll of the other streams only takes their counters: their bitrate and loss need two. The rows go
-    // with the next sample: the panel draws them together.
-    if (polls % STREAMS_EVERY_SAMPLES === 0) {
-      const first = polls === 0;
-      otherStreams.poll(report, sample, lastMessage?.goodness ?? {}).then((rows) => {
-        if (!first && state === "live") {
-          withNextSample(() => postToPopup(MESSAGES.VTT_STREAMS, rows));
-        }
-      });
-    }
+    pollOtherStreams(report, sample);
     polls += 1;
     const end = performance.now();
     perf.sampleMs.add(end - begin, end);
   };
 
+  // VTT_FPS, four times a second: the Frame rate tile between samples.
   const postFps = () => {
     const now = elapsed();
     // The first second would count only part of a window.
@@ -451,6 +498,7 @@ export const startSession = ({
     postToPopup(MESSAGES.VTT_FPS, message);
   };
 
+  // ICE states go to the detectors (Reconnection); a closed ICE ends the session.
   const onIce = () => {
     if (peerConnection.iceConnectionState === "closed") {
       disconnect("connection closed");
@@ -459,11 +507,13 @@ export const startSession = ({
     engine.signal({ kind: "ice", t: seconds(), state: peerConnection.iceConnectionState, lastPacketT });
   };
   const onTrackEnded = () => disconnect("track ended");
+  // The page is being left: a live session's run is saved now (lastRun.ts sends it synchronously).
   const onUnload = () => {
     if (state === "live") {
       saveRun(seconds());
     }
   };
+  // The SDP for the export is taken in stable signaling states only.
   const onSignaling = () => {
     if (peerConnection.signalingState === "stable") {
       sdp = readSdp(peerConnection);
@@ -480,7 +530,9 @@ export const startSession = ({
   peerConnection.addEventListener("signalingstatechange", onSignaling);
   tracks.forEach((track) => track.addEventListener("ended", onTrackEnded));
   window.addEventListener("beforeunload", onUnload);
-  const interval = setInterval(() => poll(), SAMPLE_INTERVAL_MS);
+  const interval = setInterval(() => {
+    void poll();
+  }, SAMPLE_INTERVAL_MS);
   const fpsInterval = setInterval(postFps, FPS_INTERVAL_MS);
 
   // The collection stops; the buffer, events and problems stay.
@@ -498,7 +550,7 @@ export const startSession = ({
 
   // The ICE state the session starts in.
   engine.signal({ kind: "ice", t: 0, state: peerConnection.iceConnectionState, lastPacketT: null });
-  poll(firstReport);
+  void poll(firstReport);
 
   // The samples recorded so far, played again after the last one (fastForward): those with video data, or all of
   // them when none has (an audio-only stream).
@@ -526,7 +578,8 @@ export const startSession = ({
       buffer,
       events: events.events,
       problems: engine.list(),
-      hidden: clock.suspensions(elapsed()).map(({ start, end }) => ({ start: start / 1000, end: end / 1000 })),
+      // Up to the end of the session: a suspension that went on when it ended stops there.
+      hidden: clock.suspensions((endedT ?? seconds()) * 1000).map(({ start, end }) => ({ start: start / 1000, end: end / 1000 })),
     }, request),
     report: () => {
       const stats = reportStats(distributionSource());
@@ -584,6 +637,7 @@ export const startSession = ({
       }
       const count = Math.floor(seconds);
       forwarding = true;
+      // Replayed seconds are not a real run: it is never saved as the previous run.
       saved = true;
       // The clock jumps at once: what happens during the replay is already on the far side of the skipped time.
       skippedMs += count * 1000;
@@ -592,7 +646,7 @@ export const startSession = ({
       lastPollMs += count * 1000;
       let done = 0;
       let work = 0;
-      while (done < count && state === "live") {
+      while (done < count && isLive()) {
         const begin = performance.now();
         postBatch(() => {
           while (done < count && performance.now() - begin < FORWARD_STEP_MS) {
@@ -605,7 +659,7 @@ export const startSession = ({
       }
       forwarding = false;
       // The panel shows the jump at once: the tiles, the sparklines and the status of the last replayed second.
-      if (state === "live" && lastSample) {
+      if (isLive() && lastSample) {
         const last = lastSample;
         postBatch(() => send(last, lastSnapshot?.element));
       }

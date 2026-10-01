@@ -4,11 +4,11 @@ import { pathLabel } from "../connection";
 import { Description, Detector, Problem, ProblemEngine } from "./engine";
 
 // Slow: no first frame 4 s after the origin; severe: later than 8 s; none in 15 s — closed as "no video".
-export const SLOW_S = 4;
+const SLOW_S = 4;
 export const SEVERE_S = 8;
 export const NO_VIDEO_S = 15;
 // Likely cause: ICE itself took longer than this.
-export const ICE_SLOW_S = 3;
+const ICE_SLOW_S = 3;
 // HTMLMediaElement.HAVE_CURRENT_DATA: the element has a frame to show.
 const HAVE_CURRENT_DATA = 2;
 
@@ -31,6 +31,7 @@ export const streamOrigin = (remoteDescription: number | null, readyState: numbe
   return remoteDescription !== null && remoteDescription <= 0 && remoteDescription >= -NO_VIDEO_S ? remoteDescription : 0;
 };
 
+// The card's facts; noVideo — closed NO_VIDEO_S after the origin without a frame.
 interface SlowStartData {
   noVideo: boolean;
   // The selected path while the problem went on, and whether it is a relay.
@@ -41,17 +42,35 @@ interface SlowStartData {
 }
 
 const seconds = (value: number) => `${value.toFixed(2)} s`;
+const orDash = (value: number | null) => (value === null ? "—" : seconds(value));
 
+// Likely cause (PRD §12.4): ICE did not connect or connected slowly; else the wait for a keyframe after it did.
+// Times are seconds after the origin; `frame` is null when no frame came.
+const slowStartCause = (ice: number | null, frame: number | null, waited: number, relay: boolean): string => {
+  if (ice === null) {
+    return `ICE did not connect in ${seconds(waited)}.`;
+  }
+  if (ice > ICE_SLOW_S) {
+    return `ICE took ${seconds(ice)} to connect${relay ? " through a relay" : ""}.`;
+  }
+  return frame === null
+    ? `Connected in ${seconds(ice)} but no frame came in ${seconds(waited - ice)} — waiting for a keyframe from the sender.`
+    : `Connected in ${seconds(ice)} but the first frame came ${seconds(frame - ice)} later — waiting for a keyframe from the sender.`;
+};
+
+// Detects Slow start: no first frame SLOW_S after the stream's origin; closed at the first frame or as no video.
 export class SlowStart implements Detector<SlowStartData> {
   readonly type = "slow_start";
   private readonly start: () => StreamStart;
   // The first frame is known, or the problem is over: one slow start per session.
   private done = false;
 
+  // `start` — the stream's start times as known now.
   constructor(start: () => StreamStart) {
     this.start = start;
   }
 
+  // Opens back at the origin (not before the session start) once the first frame is SLOW_S late; once per session.
   onSample(engine: ProblemEngine): void {
     const start = this.start();
     const { origin, firstFrame } = start;
@@ -85,6 +104,7 @@ export class SlowStart implements Detector<SlowStartData> {
     }
   }
 
+  // Severe when the first frame came, or has been waited for, more than SEVERE_S after the origin.
   describe(problem: Problem<SlowStartData>, engine: ProblemEngine): Description {
     const { noVideo, path, relay, final } = problem.data;
     const start = final ?? this.start();
@@ -96,21 +116,6 @@ export class SlowStart implements Detector<SlowStartData> {
     const packet = since(start.firstPacket);
     const waited = noVideo ? NO_VIDEO_S : frame ?? (problem.tEnd ?? engine.t) - origin;
 
-    let firstFrame = frame === null ? "—" : seconds(frame);
-    if (noVideo) {
-      firstFrame = `none in ${NO_VIDEO_S} s`;
-    }
-    let likelyCause: string;
-    if (ice === null) {
-      likelyCause = `ICE did not connect in ${seconds(waited)}.`;
-    } else if (ice > ICE_SLOW_S) {
-      likelyCause = `ICE took ${seconds(ice)} to connect${relay ? " through a relay" : ""}.`;
-    } else if (frame !== null) {
-      likelyCause = `Connected in ${seconds(ice)} but the first frame came ${seconds(frame - ice)} later — waiting for a keyframe from the sender.`;
-    } else {
-      likelyCause = `Connected in ${seconds(ice)} but no frame came in ${seconds(waited - ice)} — waiting for a keyframe from the sender.`;
-    }
-
     return {
       title: "Slow start",
       category: "Network",
@@ -119,12 +124,12 @@ export class SlowStart implements Detector<SlowStartData> {
       card: {
         series: engine.cardSeries("v_bitrate", problem),
         rows: [
-          ["First frame", firstFrame],
-          ["ICE connected at", ice === null ? "—" : seconds(ice)],
-          ["First packet at", packet === null ? "—" : seconds(packet)],
+          ["First frame", noVideo ? `none in ${NO_VIDEO_S} s` : orDash(frame)],
+          ["ICE connected at", orDash(ice)],
+          ["First packet at", orDash(packet)],
           ["Path", path ?? "—"],
         ],
-        likelyCause,
+        likelyCause: slowStartCause(ice, frame, waited, relay),
         check: "TURN configuration and UDP; keyframe request handling on the sender/SFU.",
       },
     };

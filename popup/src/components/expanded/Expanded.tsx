@@ -1,3 +1,4 @@
+// Expanded: the panel's full view of a session, with the Timeline and Report tabs.
 import React, { useContext } from "react";
 import styles from "./Expanded.module.css";
 import { DisplayContext } from "../../context/DisplayContext";

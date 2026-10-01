@@ -1,3 +1,4 @@
+// The Timeline's list of problems under the charts; it scrolls to new problems as they come.
 import React, {
   useCallback, useEffect, useRef
 } from "react";
@@ -6,7 +7,7 @@ import { ProblemMessage } from "../../../../shared/protocol";
 import { problemDuration, problemInterval } from "./problems";
 
 // The list follows a new problem unless the tester scrolled it this recently (PRD §11.4).
-export const USER_SCROLL_PAUSE_MS = 10000;
+const USER_SCROLL_PAUSE_MS = 10000;
 
 interface ProblemsListProps {
   problems: ProblemMessage[];

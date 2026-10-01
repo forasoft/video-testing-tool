@@ -1,10 +1,11 @@
+// The header of Expanded: title, state, tabs, connection line, Mark, Export, Collapse and Close.
 import React, { useContext } from "react";
 import styles from "./Header.module.css";
 import { CONST } from "../../CONST/const";
 import { DisplayContext } from "../../context/DisplayContext";
 import { SessionContext } from "../../context/SessionContext";
 import { ExpandedTab } from "../../../../shared/protocol";
-import { postToWindow } from "../../utils/postToWindow";
+import { postToWindow } from "../../utils/page";
 import { ButtonTip } from "../icons/ButtonTip";
 import { MarkButton } from "../mark/MarkButton";
 import { ExportMenu } from "./ExportMenu";
@@ -47,9 +48,10 @@ const ConnectionLine: React.FC = () => {
   return (
     <span className={styles.connection} data-connection-line>
       <span className={styles.line} tabIndex={0} aria-describedby={connection.tooltip.length ? "vtt-connection-line-tooltip" : undefined}>
-        {connectionLine(connection, sample?.goodness.rtt).map(({ text, goodness, plain }, i) => (
-          // The parts of the line are fixed by their place in it.
-          <span key={i} className={`${plain ? "" : styles.value} ${goodness ? styles[goodness] : ""}`}>{text}</span>
+        {connectionLine(connection, sample.goodness.rtt).map(({
+          key, text, goodness, plain,
+        }) => (
+          <span key={key} className={`${plain ? "" : styles.value} ${goodness ? styles[goodness] : ""}`}>{text}</span>
         ))}
       </span>
       {connection.tooltip.length > 0 && (

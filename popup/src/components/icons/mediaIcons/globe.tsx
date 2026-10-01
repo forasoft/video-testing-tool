@@ -1,3 +1,4 @@
+// Icon of the ForaSoft website link.
 import React from "react";
 
 export const GlobeIcon: React.FC = () => (

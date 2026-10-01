@@ -1,3 +1,5 @@
+// The panel's English strings, read with useTranslation: the label, hint and no-data text of each Compact tile (by
+// its key) and of the codecs.
 export const translation = {
   stats: {
     averageFps: {

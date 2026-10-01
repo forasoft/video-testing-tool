@@ -14,7 +14,8 @@ export const CARD_MARGIN_S = 15;
 // "Before t" in sample windows: the sample at t itself is left out.
 const BEFORE = 1e-6;
 
-export type ProblemType =
+// The ten problems of PRD §12.3, one detector each; the popup gets it as ProblemMessage.type.
+type ProblemType =
   | "bandwidth_drop"
   | "video_freeze"
   | "page_jank"
@@ -26,6 +27,7 @@ export type ProblemType =
   | "blurry"
   | "slow_start";
 
+// One problem as the engine keeps it, shown or not yet; D — what its detector keeps about it.
 export interface Problem<D = unknown> {
   // 0 until the problem has lasted MIN_DURATION_S and is shown.
   id: number;
@@ -57,12 +59,17 @@ export interface IceSignal {
   lastPacketT: number | null;
 }
 
+// Every kind of signal; ICE state changes are the only one so far.
 export type Signal = IceSignal;
 
+// The detector of one problem type: opens and closes its problems through the engine and describes them.
 export interface Detector<D = unknown> {
   type: ProblemType;
+  // After every sample: engine.t and engine.sample are the new one's.
   onSample?(engine: ProblemEngine): void;
+  // On a fact between samples (an ICE state change).
   onSignal?(signal: Signal, engine: ProblemEngine): void;
+  // The texts and the card of a problem as of engine.t; asked again while the card can still change.
   describe(problem: Problem<D>, engine: ProblemEngine): Description;
   // false while a closed problem's card can still change after CARD_MARGIN_S.
   settled?(problem: Problem<D>, engine: ProblemEngine): boolean;
@@ -72,6 +79,7 @@ interface EngineOptions {
   buffer: SampleBuffer;
   events: EventLog;
   detectors: Detector[];
+  // Gets every new or changed problem message (VTT_PROBLEM).
   send?: (message: ProblemMessage) => void;
   // A detector ends the session (Reconnection not recovered).
   onEnd?: (reason: string) => void;
@@ -79,6 +87,7 @@ interface EngineOptions {
 
 const round = (t: number) => Math.round(t * 1000) / 1000;
 
+// Median of the values, null for none; of an even count — the mean of the two middle ones.
 export const median = (values: number[]): number | null => {
   if (!values.length) {
     return null;
@@ -88,6 +97,8 @@ export const median = (values: number[]): number | null => {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 };
 
+// Runs the detectors on every sample and signal, numbers the problems that last MIN_DURATION_S and sends their
+// messages whenever they change.
 export class ProblemEngine {
   readonly buffer: SampleBuffer;
   readonly events: EventLog;
@@ -114,6 +125,7 @@ export class ProblemEngine {
 
   // ---- session side
 
+  // A new sample: the detectors look at it, then the cards are refreshed. Without `connection` the last one stays.
   onSample(sample: SampleValues, connection?: ConnectionInfo): void {
     if (this.finished || sample.t === null) {
       return;
@@ -126,6 +138,7 @@ export class ProblemEngine {
     this.run((detector) => detector.onSample?.(this));
   }
 
+  // A fact between samples: time moves on to it (never back), and the detectors that listen get it.
   signal(signal: Signal): void {
     if (this.finished) {
       return;
@@ -152,8 +165,9 @@ export class ProblemEngine {
 
   // ---- detector side
 
+  // The open problem of a type, null while none goes on.
   current<D>(type: ProblemType): Problem<D> | null {
-    return (this.problems.find((p) => p.type === type && p.tEnd === null) as Problem<D>) ?? null;
+    return (this.problems.find((p) => p.type === type && p.tEnd === null) as Problem<D> | undefined) ?? null;
   }
 
   // Problems of one type do not overlap: while one is open, it is returned instead.
@@ -167,12 +181,12 @@ export class ProblemEngine {
     return problem;
   }
 
+  // Ends a problem: the first end stays, and an end before the start is moved to it.
   close(problem: Problem, tEnd: number): void {
-    if (problem.tEnd === null) {
-      problem.tEnd = round(Math.max(tEnd, problem.tStart));
-    }
+    problem.tEnd ??= round(Math.max(tEnd, problem.tStart));
   }
 
+  // Asks to end the session: onEnd gets the first reason once the current step has sent its cards.
   endSession(reason: string): void {
     this.endReason = this.endReason ?? reason;
   }
@@ -210,12 +224,14 @@ export class ProblemEngine {
     return { name: field, points: this.points(field, problem.tStart - CARD_MARGIN_S, to) };
   }
 
+  // Seconds the problem lasted, or has lasted so far while it goes on.
   duration(problem: Problem): number {
     return (problem.tEnd ?? this.t) - problem.tStart;
   }
 
   // ---- internals
 
+  // One step: every detector, then the cards, then the end of the session if a detector asked for it.
   private run(step: (detector: Detector) => void): void {
     this.detectors.forEach(step);
     this.refresh();
@@ -230,6 +246,8 @@ export class ProblemEngine {
     return this.detectors.find((d) => d.type === type) as Detector;
   }
 
+  // Drops blips, numbers the problems that reached MIN_DURATION_S, sends the messages that changed and keeps at
+  // most PROBLEM_LIMIT problems shown, dropping the oldest closed ones.
   private refresh(): void {
     // Blips that ended before they were shown are dropped.
     this.problems = this.problems.filter((p) => p.id > 0 || p.tEnd === null || p.tEnd - p.tStart >= MIN_DURATION_S);

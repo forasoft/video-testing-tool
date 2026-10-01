@@ -18,6 +18,7 @@ const children = [
   run("popup", "npx", ["vite", "build", "--watch"], path.join(root, "popup")),
 ];
 
+// Spawns a tool with each line of its output prefixed by `name`; when a tool exits, the whole watch stops.
 function run(name, cmd, args, cwd) {
   const child = spawn(cmd, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
   const prefix = (chunk) =>
@@ -36,6 +37,8 @@ function run(name, cmd, args, cwd) {
   return child;
 }
 
+// The copy step of build.sh: build/ is the popup's output plus the injection's bundle as injection.js; nothing is
+// copied until both tools have built once.
 function copyBuild() {
   const injectionBundle = path.join(injectionOut, "main.js");
   if (!fs.existsSync(path.join(popupOut, "index.html")) || !fs.existsSync(injectionBundle)) {
@@ -56,6 +59,7 @@ function scheduleCopy() {
   timer = setTimeout(copyBuild, 400);
 }
 
+// Watches a tool's output folder; it is created first, as fs.watch needs it before the tool's first build.
 const watchers = [];
 function watchOutput(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -64,6 +68,7 @@ function watchOutput(dir) {
 watchOutput(popupOut);
 watchOutput(injectionOut);
 
+// Stops the watchers and the tools still running: on Ctrl+C, or when one of the tools exits.
 function shutdown(code = 0) {
   watchers.forEach((watcher) => watcher.close());
   children.forEach((child) => child.exitCode === null && child.kill());

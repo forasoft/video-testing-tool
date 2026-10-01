@@ -1,7 +1,9 @@
+// Copies the own properties `properties` of `src` to `dest` with their descriptors (getters and flags included).
 const copyProperties = (src: object, dest: object, properties: string[]) => {
   properties.forEach((name) => {
-    if (Object.prototype.hasOwnProperty.call(src, name)) {
-      Object.defineProperty(dest, name, Object.getOwnPropertyDescriptor(src, name));
+    const descriptor = Object.getOwnPropertyDescriptor(src, name);
+    if (descriptor) {
+      Object.defineProperty(dest, name, descriptor);
     }
   });
 };

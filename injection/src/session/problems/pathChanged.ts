@@ -7,15 +7,16 @@ import { Description, Detector, median, Problem, ProblemEngine } from "./engine"
 // RTT medians over this many seconds before the change and after it (the change's sample included).
 export const WINDOW_S = 10;
 // A change to a non-relay pair is a problem when the RTT median grew this much.
-export const RTT_GROWTH = 1.5;
+const RTT_GROWTH = 1.5;
 // The problem lasts this long after the change.
-export const DURATION_S = 3;
+const DURATION_S = 3;
 // "Before t" in sample windows: the sample at t itself is left out.
 const BEFORE = 1e-6;
 
 const RELAY = CANDIDATE_TYPES.indexOf("relay");
 
-export interface PathChangedData {
+// The change the card describes; a change within the problem's 3 s replaces it but keeps the path before.
+interface PathChangedData {
   // The path_change event, seconds from the session start.
   event: number;
   // `local→remote · proto` before and after the change.
@@ -29,10 +30,12 @@ export interface PathChangedData {
   turn: string | null;
 }
 
+// A path_change event as it was taken: the same facts as a problem's data.
 type Change = Omit<PathChangedData, "event"> & { event: number };
 
 const round = (value: number | null) => (value === null ? "—" : String(Math.round(value)));
 
+// Detects Connection path changed: a path_change to a relay pair at once, to another one if the RTT median grew 1.5×.
 export class PathChanged implements Detector<PathChangedData> {
   readonly type = "path_changed";
   private readonly turn: () => string | null;
@@ -48,6 +51,7 @@ export class PathChanged implements Detector<PathChangedData> {
     this.turn = turn;
   }
 
+  // Takes the new path_change events, judges the waiting changes, and ends the problem DURATION_S after its change.
   onSample(engine: ProblemEngine): void {
     const now = pathLabel(engine.connection);
     engine.events.between("path_change", this.seen, engine.t)
@@ -79,10 +83,11 @@ export class PathChanged implements Detector<PathChangedData> {
         return true;
       }
       const [before, after] = this.rtt(change.event, engine);
-      if (before !== null && after !== null && after >= RTT_GROWTH * before) {
-        this.start(change, engine);
+      if (before === null || after === null || after < RTT_GROWTH * before) {
+        return false;
       }
-      return false;
+      // Kept while it cannot be taken yet: an older change of its own waits for the newer problem to end.
+      return !this.start(change, engine);
     });
 
     const open = engine.current<PathChangedData>(this.type);
@@ -91,17 +96,33 @@ export class PathChanged implements Detector<PathChangedData> {
     }
   }
 
-  // Problems of one type do not overlap: a change within the previous one's 3 s continues it.
-  private start(change: Change, engine: ProblemEngine): void {
+  // Takes a change into the problems; false when it has to wait. Problems of one type do not overlap: changes within
+  // 3 s are one problem — the path before is the first change's, the rest the last one's. A change to a non-relay
+  // pair is judged 10 s late, so it can be older than a problem that a newer change opened meanwhile.
+  private start(change: Change, engine: ProblemEngine): boolean {
     const last = engine.problems.filter((p) => p.type === this.type).pop() as Problem<PathChangedData> | undefined;
-    if (last && (last.tEnd === null || last.tEnd > change.event)) {
-      Object.assign(last.data, { ...change, before: last.data.before, event: change.event });
-      if (last.tEnd !== null) {
+    if (!last) {
+      engine.open<PathChangedData>(this.type, change.event, change);
+      return true;
+    }
+    if (change.event >= last.data.event) {
+      if (last.tEnd === null || last.tEnd > change.event) {
+        // A newer change within the problem's 3 s continues it.
+        Object.assign(last.data, { ...change, before: last.data.before, event: change.event });
         last.tEnd = null;
+        return true;
       }
-      return;
+    } else if (change.event + DURATION_S > last.tStart) {
+      // An older change within 3 s before the problem: the problem starts at it, with its path before.
+      last.tStart = change.event;
+      last.data.before = change.before;
+      return true;
+    } else if (last.tEnd === null) {
+      // An older change of its own opens a problem in the past once the newer one has ended.
+      return false;
     }
     engine.open<PathChangedData>(this.type, change.event, change);
+    return true;
   }
 
   // RTT medians of the 10 s before the change and of the 10 s after it (up to now), ms.
@@ -112,6 +133,7 @@ export class PathChanged implements Detector<PathChangedData> {
     ];
   }
 
+  // RTT medians of the WINDOW_S before / after the change and the mean loss after it, not of the problem's 3 s.
   describe(problem: Problem<PathChangedData>, engine: ProblemEngine): Description {
     const {
       event, before, after, relay, type, proto, turn,

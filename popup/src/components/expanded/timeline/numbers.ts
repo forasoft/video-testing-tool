@@ -4,12 +4,14 @@
 export const NUMBER_R = 7;
 const GAP = 2;
 
-export interface NumberedBand {
+// What numberCenters needs of a band: its start, seconds, and the number of its problem when it shows one.
+interface NumberedBand {
   from: number;
   number?: number;
 }
 
-export interface NumberCenter {
+// Where a number's circle is drawn, px from the plot's top-left.
+interface NumberCenter {
   number: number;
   x: number;
   y: number;

@@ -1,3 +1,4 @@
+// What the tiles and codecs show instead of a value they do not have, with the reason as a tooltip.
 import React from "react";
 import styles from "../stream-info/index.module.css";
 import { ExclamationIcon } from "./statIcons/Exclamation";
@@ -7,6 +8,7 @@ interface NoValueContainerProps {
   errorText: string,
 }
 
+// A codec without a value: a red ! icon with the error text as the tooltip.
 export const NoValueTextContainer: React.FC<NoValueContainerProps> = ({ errorText }) => (
   <Tooltip
     icon={<ExclamationIcon className={styles.hintIcon} />}

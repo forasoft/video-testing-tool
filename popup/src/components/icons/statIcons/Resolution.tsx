@@ -1,3 +1,4 @@
+// Icon of the Resolution tile.
 import React from "react";
 
 export const ResolutionIcon = () => (

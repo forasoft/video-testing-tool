@@ -1,3 +1,4 @@
+// The start screen's content: what StreamTest does, how to pick a stream, and what is left of the last session.
 import React, { useContext } from "react";
 import styles from "./MainScreen.module.css";
 import { SessionContext } from "../../../context/SessionContext";
@@ -38,6 +39,7 @@ const LastSession: React.FC<Pick<MainScreenProps, "onOpenReport">> = ({ onOpenRe
   );
 };
 
+// The purpose, the two steps, why the last attempt failed and the last session; the footer is the layout's.
 export const MainScreen: React.FC<MainScreenProps> = ({ error, onOpenReport }) => (
   <div className={styles.mainScreenContent}>
     <div className={styles.toolPurpose}>

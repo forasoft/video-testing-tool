@@ -15,6 +15,9 @@ const [stats] = loadSnapshots("receive-only-loss5.json");
 
 type Listener = (event: unknown) => void;
 
+// The page's origin: what the page posts to its own window comes from it.
+const PAGE_ORIGIN = "http://localhost";
+
 class FakeVideo {
   style = { display: "" };
   children: unknown[] = [];
@@ -70,13 +73,19 @@ const makeConnection = (tracks: unknown[], getStats: () => Promise<RTCStatsRepor
 // Start errors, PRD §14.2: a red line under the steps instead of alert(); the panel opens to show it.
 describe("picking a stream", () => {
   let listeners: Listener[];
+  let rightClicks: Listener[];
   let videos: FakeVideo[];
   const dispatchEvent = vi.fn();
 
+  // VTT_CONTEXT_BTN_CLICK, posted to the page's window: by background.js, from the page's own origin.
+  const postTestStream = (source: unknown = window, origin = PAGE_ORIGIN) => {
+    listeners.forEach((fn) => fn({ source, origin, data: { id: EVENTS.VTT_CONTEXT_BTN_CLICK } }));
+  };
+
   // The extension's menu item: the last right-click, then VTT_CONTEXT_BTN_CLICK from the background.
   const clickTestStream = () => {
-    (window as unknown as { oncontextmenu: Listener }).oncontextmenu({ clientX: 100, clientY: 100 });
-    listeners.forEach((fn) => fn({ source: window, data: { id: EVENTS.VTT_CONTEXT_BTN_CLICK } }));
+    rightClicks.forEach((fn) => fn({ clientX: 100, clientY: 100 }));
+    postTestStream();
   };
 
   const posted = (id: string) => vi.mocked(postToPopup).mock.calls.filter(([messageId]) => messageId === id).map(([, data]) => data);
@@ -86,6 +95,7 @@ describe("picking a stream", () => {
     dispatchEvent.mockClear();
     vi.useFakeTimers();
     listeners = [];
+    rightClicks = [];
     videos = [];
     vi.stubGlobal("HTMLVideoElement", FakeVideo);
     vi.stubGlobal("location", { hostname: "localhost", origin: "http://localhost", href: "http://localhost/" });
@@ -94,12 +104,16 @@ describe("picking a stream", () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
       getElementsByTagName: () => videos,
+      getElementById: () => null,
     });
     vi.stubGlobal("window", {
-      frames: {},
+      origin: PAGE_ORIGIN,
       addEventListener: (type: string, fn: Listener) => {
         if (type === "message") {
           listeners.push(fn);
+        }
+        if (type === "contextmenu") {
+          rightClicks.push(fn);
         }
       },
       removeEventListener: vi.fn(),
@@ -123,6 +137,28 @@ describe("picking a stream", () => {
     expect(START_ERRORS.noVideo).toBe("No video under the cursor. Right-click directly on a participant's video.");
   });
 
+  it("says that there is no video when Test stream comes before any right-click", () => {
+    videos.push(new FakeVideo(makeTracks()));
+    const before = getLastSession();
+
+    postTestStream();
+
+    expect(posted(EVENTS.VTT_GO_TO_MAIN_SCREEN)).toEqual([{ error: START_ERRORS.noVideo }]);
+    expect(getLastSession()).toBe(before);
+  });
+
+  it("takes Test stream only from the page's own window and origin", () => {
+    rightClicks.forEach((fn) => fn({ clientX: 100, clientY: 100 }));
+
+    // Another frame of the page, and the page's window with another origin.
+    postTestStream({});
+    postTestStream(window, "https://ads.example.net");
+    expect(posted(EVENTS.VTT_GO_TO_MAIN_SCREEN)).toEqual([]);
+
+    postTestStream();
+    expect(posted(EVENTS.VTT_GO_TO_MAIN_SCREEN)).toEqual([{ error: START_ERRORS.noVideo }]);
+  });
+
   it("says that the video has no WebRTC connection", () => {
     videos.push(new FakeVideo(makeTracks()));
 
@@ -130,6 +166,17 @@ describe("picking a stream", () => {
 
     expect(posted(EVENTS.VTT_GO_TO_MAIN_SCREEN)).toEqual([{ error: START_ERRORS.noConnection }]);
     expect(START_ERRORS.noConnection).toBe("No WebRTC connection found for this video. It may not be a WebRTC stream, or it was created before the page loaded.");
+  });
+
+  it("says that there is no WebRTC connection when the video's stream has no tracks", () => {
+    videos.push(new FakeVideo([]));
+    connectionsObserver([makeConnection(makeTracks(), () => Promise.resolve(toReport(stats))) as unknown as RTCPeerConnection]);
+    const before = getLastSession();
+
+    clickTestStream();
+
+    expect(posted(EVENTS.VTT_GO_TO_MAIN_SCREEN)).toEqual([{ error: START_ERRORS.noConnection }]);
+    expect(getLastSession()).toBe(before);
   });
 
   it("does not start a session when the site does not let getStats answer", async () => {

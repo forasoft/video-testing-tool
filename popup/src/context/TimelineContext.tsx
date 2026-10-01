@@ -1,12 +1,14 @@
+// The state of the Timeline tab that outlives the tab: its window, Live and the open card.
 import React, {
   FC, useCallback, useEffect, useMemo, useState
 } from "react";
 import { CONST } from "../CONST/const";
+import { onPageMessage } from "../utils/page";
 import { WindowRange } from "../components/expanded/timeline/window";
 
 // How the timeline is viewed (PRD §11.1, §11.3). It outlives the tab: switching to Report and
 // back keeps the window and Live (§16 F4).
-export interface TimelineView {
+interface TimelineView {
   range: WindowRange;
   // The window follows the time.
   live: boolean;
@@ -32,25 +34,23 @@ const initialView: TimelineView = {
   range: "last2", live: true, end: null, open: null,
 };
 
+// Read by the Timeline: the window it draws, and the changes its controls, drags and clicks make.
 export const TimelineContext = React.createContext({} as ContextValue);
 
 interface Props {
   children: React.ReactNode;
 }
 
+// Provided in App, above the tabs, so that the view stays while the Report is shown.
 export const TimelineContextProvider: FC<Props> = ({ children }) => {
   const [view, setView] = useState(initialView);
 
   // A new session starts with the default window.
-  useEffect(() => {
-    const callback = (e: MessageEvent) => {
-      if (e.data?.id === CONST.CONTEXT_MENU_VTT_WAS_CLICKED) {
-        setView(initialView);
-      }
-    };
-    window.addEventListener("message", callback);
-    return () => window.removeEventListener("message", callback);
-  }, []);
+  useEffect(() => onPageMessage((message) => {
+    if (message.id === CONST.CONTEXT_MENU_VTT_WAS_CLICKED) {
+      setView(initialView);
+    }
+  }), []);
 
   const setRange = useCallback((range: WindowRange) => setView((prev) => ({ ...prev, range })), []);
   const goLive = useCallback(() => setView((prev) => ({ ...prev, live: true, end: null })), []);

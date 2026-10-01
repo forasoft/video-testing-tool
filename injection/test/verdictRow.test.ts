@@ -42,10 +42,12 @@ describe("connection line", () => {
 
     expect(text(parts)).toBe("H264 · opus · srflx→relay · udp · RTT 92 ms");
     expect(parts.filter((p) => p.goodness)).toEqual([
-      { text: "→relay", goodness: "moderate" },
-      { text: "RTT ", goodness: "good", plain: true },
-      { text: "92 ms", goodness: "good" },
+      { key: "remote", text: "→relay", goodness: "moderate" },
+      { key: "rtt-label", text: "RTT ", goodness: "good", plain: true },
+      { key: "rtt", text: "92 ms", goodness: "good" },
     ]);
+    // Every part has its own key: the line's elements keep them while the line changes.
+    expect(new Set(parts.map((p) => p.key)).size).toBe(parts.length);
     // Values are monospace; separators and the RTT label are not.
     expect(parts.filter((p) => !p.plain).map((p) => p.text)).toEqual(["H264", "opus", "srflx", "→relay", "udp", "92 ms"]);
   });

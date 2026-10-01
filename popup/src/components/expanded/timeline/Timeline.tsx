@@ -1,3 +1,4 @@
+// The Timeline tab of Expanded: the session over time — its charts, events, and problems with their cards.
 import React, {
   useContext, useEffect, useMemo, useRef, useState
 } from "react";
@@ -7,7 +8,8 @@ import { FpsContext } from "../../../context/FpsContext";
 import { SessionContext } from "../../../context/SessionContext";
 import { TimelineContext } from "../../../context/TimelineContext";
 import { groupThousands, mmss } from "../../../../../shared/format";
-import { SampleMessage } from "../../../../../shared/protocol";
+import { SampleValues } from "../../../../../shared/constants/sampleFields";
+import { EventMessage, ProblemMessage, SampleMessage } from "../../../../../shared/protocol";
 import {
   bitrateView, fpsView, lossView, MetricView, videoDelayView
 } from "../../../utils/views";
@@ -25,9 +27,7 @@ import {
 } from "./scale";
 import { delayStack, pointsOf } from "./series";
 import { chartRows, historyRows, visibleRows } from "./rows";
-import {
-  cursorLines, eventNames, nearestRow, problemNames, rowSpan
-} from "./tooltip";
+import { nearestRow, rowSpan, tooltipLines } from "./tooltip";
 import { useViewPerf } from "../../../utils/perf";
 import { useHistory } from "./useHistory";
 import { useWidth } from "./useWidth";
@@ -73,6 +73,7 @@ const Row: React.FC<RowProps> = ({ name, value, children }) => (
   </div>
 );
 
+// The m:ss labels under the charts every `step` seconds; the labels at the plot's edges keep inside it.
 const TimeAxis: React.FC<{ window: TimeWindow; step: number }> = ({ window, step }) => {
   const ref = useRef<HTMLDivElement>(null);
   const width = useWidth(ref);
@@ -103,6 +104,124 @@ const TimeAxis: React.FC<{ window: TimeWindow; step: number }> = ({ window, step
   );
 };
 
+interface ChartScale {
+  max: number;
+  series: ChartSeries[];
+}
+
+// The series of the four rows and the top of each scale (PRD §11.2), from the seconds the window shows.
+const chartScales = (shown: SampleValues[], window: TimeWindow): Record<"bitrate" | "fps" | "loss" | "delay", ChartScale> => {
+  const bitrate = pointsOf(shown, "v_bitrate");
+  // The channel estimate, dashed — when the browser reports it.
+  const channel = pointsOf(shown, "avail_in");
+  const hasChannel = channel.some(({ v }) => v !== null);
+  const fps = pointsOf(shown, "v_fps_r");
+  const loss = pointsOf(shown, "v_loss");
+  const delay = delayStack(shown);
+  const bitrateSeries: ChartSeries[] = [{ key: "bitrate", points: bitrate, color: "var(--blue)", fill: 0.12 }];
+  if (hasChannel) {
+    bitrateSeries.push({ key: "channel", points: channel, color: "var(--gray)", line: 1.3, dashed: true });
+  }
+  return {
+    bitrate: { max: Math.max(500, nice(maxIn(window, bitrate, hasChannel ? channel : []) * 1.2)), series: bitrateSeries },
+    fps: {
+      max: Math.max(34, nice(maxIn(window, fps) * 1.1)),
+      series: [{ key: "fps", points: fps, color: "var(--green)", fill: 0.12 }],
+    },
+    loss: {
+      max: Math.max(7, nice(maxIn(window, loss))),
+      series: [{ key: "loss", points: loss, color: "var(--red)" }],
+    },
+    // The delay stack: the total, the jitter buffer and the network as layers, and the total's outline.
+    delay: {
+      max: nice(Math.max(maxIn(window, delay.total), DELAY_LIMIT_MS) * 1.15),
+      series: [
+        { key: "delay-total", points: delay.total, color: "var(--blue-faint)", fill: 1, line: 0 },
+        { key: "delay-buffer", points: delay.buffer, color: "var(--blue-soft)", fill: 1, line: 0 },
+        { key: "delay-net", points: delay.net, color: "var(--blue)", fill: 1, line: 0 },
+        { key: "delay-outline", points: delay.total, color: "var(--blue)", line: 1.2 },
+      ],
+    },
+  };
+};
+
+// Problems of the window as bands, the longer ones first so that the shorter ones are on top; the Bitrate row
+// shows their numbers.
+const problemBandsOf = (problems: ProblemMessage[], window: TimeWindow, now: number): ChartBand[] => problems
+  .filter((p) => p.tStart <= window.to && problemEnd(p, now) >= window.from)
+  .sort((a, b) => (problemEnd(b, now) - b.tStart) - (problemEnd(a, now) - a.tStart))
+  .map((p) => ({
+    key: `problem-${p.id}`, from: p.tStart, to: problemEnd(p, now), kind: p.severity, number: p.id,
+  }));
+
+// The cursor of the second under the pointer: its values, events and problems (PRD §11.3); null without one.
+const cursorOf = (
+  row: SampleValues | null,
+  shown: SampleValues[],
+  events: EventMessage[],
+  problems: ProblemMessage[],
+  now: number,
+): Cursor | null => {
+  if (!row) {
+    return null;
+  }
+  const t = row.t as number;
+  return { t, title: mmss(t), lines: tooltipLines(row, events, problems, rowSpan(shown, row), now) };
+};
+
+interface PickSource {
+  bands: ChartBand[];
+  problems: ProblemMessage[];
+  window: TimeWindow;
+  now: number;
+}
+
+// The problem a click on the plots opens: the one whose number in the Bitrate row is under the pointer, else the
+// shortest problem under it; undefined when there is none. `at` — px from the plots' top-left, `width` — theirs.
+const pickedProblem = (
+  { bands, problems, window, now }: PickSource,
+  t: number,
+  at: { x: number; y: number },
+  width: number,
+): number | undefined => {
+  const x = (time: number) => ((time - window.from) / (window.to - window.from)) * width;
+  const visible = bands.filter(({ to: end }) => x(end) >= 0);
+  const numbered = numberCenters(visible, x).find((center) => Math.hypot(at.x - center.x, at.y - center.y) <= NUMBER_R + 1);
+  return numbered?.number ?? problemsAt(problems, t, now).at(0)?.id;
+};
+
+// A press outside the open card closes it (PRD §12.2).
+const useCloseOutside = (open: number | null, close: () => void) => {
+  useEffect(() => {
+    if (open === null) {
+      return undefined;
+    }
+    const onPress = (e: PointerEvent) => {
+      if (!(e.target instanceof Element && e.target.closest("[data-problem-overlay]"))) {
+        close();
+      }
+    };
+    document.addEventListener("pointerdown", onPress);
+    return () => document.removeEventListener("pointerdown", onPress);
+  }, [open, close]);
+};
+
+interface DisconnectedBannerProps {
+  // m:ss when the stream was lost.
+  time: string;
+  onPick: () => void;
+}
+
+// The stream is gone, its data stays (PRD §14.3); another one is picked from the start screen.
+const DisconnectedBanner: React.FC<DisconnectedBannerProps> = ({ time, onPick }) => (
+  <div className={styles.disconnected} role="status" data-disconnected-banner>
+    <span className={styles.disconnectedText}>{`Stream disconnected at ${time}. Data kept.`}</span>
+    <button type="button" className={styles.pickAnother} onClick={onPick} data-pick-another>
+      Pick another stream
+    </button>
+  </div>
+);
+
 // Timeline tab, PRD §11: the verdict row with the window controls and the charts of the window — the
 // samples the popup keeps, and the history the injection sends for older or longer windows.
 export const Timeline: React.FC = () => {
@@ -130,24 +249,11 @@ export const Timeline: React.FC = () => {
   const chartsWidth = useWidth(chartsRef);
   // The second under the pointer: it stays while the window moves under a still pointer.
   const [hovered, setHovered] = useState<number | null>(null);
-  const cursorRow = hovered === null ? null : nearestRow(shown, hovered, window);
-  const cursorSpan = cursorRow && rowSpan(shown, cursorRow);
-  const cursor: Cursor | null = cursorRow && cursorSpan && {
-    t: cursorRow.t as number,
-    title: mmss(cursorRow.t as number),
-    lines: [...cursorLines(cursorRow), ...eventNames(events, cursorSpan), ...problemNames(problems, cursorSpan, now)],
-  };
+  const cursor = cursorOf(hovered === null ? null : nearestRow(shown, hovered, window), shown, events, problems, now);
   // The tab was hidden or the video paused: the history's ranges and the kept seconds.
   const hidden: ChartBand[] = mergeRanges([...(answer?.hiddenRanges ?? []), ...hiddenRuns(shown)])
-    .map(([from, to]) => ({ from, to, kind: "hidden" }));
-  // Problems of the window, the longer ones first so that the shorter ones are on top; the
-  // Bitrate row shows their numbers.
-  const problemBands: ChartBand[] = problems
-    .filter((p) => p.tStart <= window.to && problemEnd(p, now) >= window.from)
-    .sort((a, b) => (problemEnd(b, now) - b.tStart) - (problemEnd(a, now) - a.tStart))
-    .map((p) => ({
-      from: p.tStart, to: problemEnd(p, now), kind: p.severity, number: p.id,
-    }));
+    .map(([from, to]) => ({ key: `hidden-${from}`, from, to, kind: "hidden" }));
+  const problemBands = problemBandsOf(problems, window, now);
   const bands = [...hidden, ...problemBands.map((band) => ({ ...band, number: undefined }))];
   const openProblem = problems.find((p) => p.id === open) ?? null;
 
@@ -161,50 +267,18 @@ export const Timeline: React.FC = () => {
     }
   };
 
-  // A click on a number in the Bitrate row opens that problem; on a band — the shortest problem
-  // under the pointer.
   const pick = (t: number, at: { x: number; y: number }, width: number) => {
-    const x = (time: number) => ((time - window.from) / (window.to - window.from)) * width;
-    const visible = problemBands.filter(({ to: end }) => x(end) >= 0);
-    const numbered = numberCenters(visible, x).find((center) => Math.hypot(at.x - center.x, at.y - center.y) <= NUMBER_R + 1);
-    const [under] = problemsAt(problems, t, now);
-    const id = numbered?.number ?? under?.id;
+    const id = pickedProblem({
+      bands: problemBands, problems, window, now,
+    }, t, at, width);
     if (id !== undefined) {
       show(id);
     }
   };
 
-  // A click outside the open card closes it (PRD §12.2).
-  useEffect(() => {
-    if (open === null) {
-      return undefined;
-    }
-    const close = (e: PointerEvent) => {
-      if (!(e.target instanceof Element && e.target.closest("[data-problem-overlay]"))) {
-        closeProblem();
-      }
-    };
-    document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
-  }, [open, closeProblem]);
+  useCloseOutside(open, closeProblem);
 
-  const bitrate = pointsOf(shown, "v_bitrate");
-  const channel = pointsOf(shown, "avail_in");
-  const hasChannel = channel.some(({ v }) => v !== null);
-  const bitrateMax = Math.max(500, nice(maxIn(window, bitrate, hasChannel ? channel : []) * 1.2));
-  const bitrateSeries: ChartSeries[] = [{ points: bitrate, color: "var(--blue)", fill: 0.12 }];
-  if (hasChannel) {
-    bitrateSeries.push({ points: channel, color: "var(--gray)", line: 1.3, dashed: true });
-  }
-
-  const fps = pointsOf(shown, "v_fps_r");
-  const fpsMax = Math.max(34, nice(maxIn(window, fps) * 1.1));
-
-  const loss = pointsOf(shown, "v_loss");
-  const lossMax = Math.max(7, nice(maxIn(window, loss)));
-
-  const delay = delayStack(shown);
-  const delayMax = nice(Math.max(maxIn(window, delay.total), DELAY_LIMIT_MS) * 1.15);
+  const scales = chartScales(shown, window);
 
   const span = spanOf(range);
 
@@ -220,11 +294,11 @@ export const Timeline: React.FC = () => {
               window={window}
               height={96}
               bands={[...hidden, ...problemBands]}
-              max={bitrateMax}
-              series={bitrateSeries}
+              max={scales.bitrate.max}
+              series={scales.bitrate.series}
               labels={[
-                { value: bitrateMax, text: groupThousands(bitrateMax) },
-                { value: bitrateMax / 2, text: groupThousands(bitrateMax / 2) },
+                { value: scales.bitrate.max, text: groupThousands(scales.bitrate.max) },
+                { value: scales.bitrate.max / 2, text: groupThousands(scales.bitrate.max / 2) },
               ]}
             />
           </Row>
@@ -232,20 +306,20 @@ export const Timeline: React.FC = () => {
             <TimeChart
               window={window}
               height={56}
-              max={fpsMax}
+              max={scales.fps.max}
               bands={bands}
-              series={[{ points: fps, color: "var(--green)", fill: 0.12 }]}
-              labels={[{ value: fpsMax, text: groupThousands(fpsMax) }]}
+              series={scales.fps.series}
+              labels={[{ value: scales.fps.max, text: groupThousands(scales.fps.max) }]}
             />
           </Row>
           <Row name="Packet loss" value={<LabelValue view={lossView({ sample, fps: null })} />}>
             <TimeChart
               window={window}
               height={56}
-              max={lossMax}
+              max={scales.loss.max}
               bands={bands}
-              series={[{ points: loss, color: "var(--red)" }]}
-              labels={[{ value: lossMax, text: `${groupThousands(lossMax)} %` }]}
+              series={scales.loss.series}
+              labels={[{ value: scales.loss.max, text: `${groupThousands(scales.loss.max)} %` }]}
             />
           </Row>
           <Row name="Delay" value={<LabelValue view={videoDelayView({ sample, fps: null })} />}>
@@ -253,14 +327,9 @@ export const Timeline: React.FC = () => {
               window={window}
               height={84}
               bands={bands}
-              max={delayMax}
-              series={[
-                { points: delay.total, color: "var(--blue-faint)", fill: 1, line: 0 },
-                { points: delay.buffer, color: "var(--blue-soft)", fill: 1, line: 0 },
-                { points: delay.net, color: "var(--blue)", fill: 1, line: 0 },
-                { points: delay.total, color: "var(--blue)", line: 1.2 },
-              ]}
-              labels={[{ value: delayMax, text: groupThousands(delayMax) }]}
+              max={scales.delay.max}
+              series={scales.delay.series}
+              labels={[{ value: scales.delay.max, text: groupThousands(scales.delay.max) }]}
               limit={{ value: DELAY_LIMIT_MS, text: `${DELAY_LIMIT_MS} ms` }}
             />
           </Row>
@@ -297,13 +366,7 @@ export const Timeline: React.FC = () => {
         now={now}
         onOpen={show}
         banner={session?.state === "disconnected" && (
-          // The stream is gone, its data stays (PRD §14.3); another one is picked from the start screen.
-          <div className={styles.disconnected} role="status" data-disconnected-banner>
-            <span className={styles.disconnectedText}>{`Stream disconnected at ${sample?.status?.time ?? mmss(now)}. Data kept.`}</span>
-            <button type="button" className={styles.pickAnother} onClick={() => setMainScreen(true)} data-pick-another>
-              Pick another stream
-            </button>
-          </div>
+          <DisconnectedBanner time={sample?.status?.time ?? mmss(now)} onPick={() => setMainScreen(true)} />
         )}
       />
     </div>

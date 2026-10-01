@@ -1,5 +1,6 @@
 // RTCStatsReport → Snapshot: only the reports of the selected stream that the metrics need.
 
+// A getStats() report of any type — RTP, codec, transport, candidate pair, candidate; fields are read by name.
 export interface RtpStats {
   id: string;
   timestamp: number;
@@ -23,17 +24,19 @@ export interface ElementInfo {
 }
 
 // Rendered frames (frames.ts): the last second and the freezes of the whole session.
-export interface FramesInfo {
+interface FramesInfo {
   // null until the session has run for a whole window of 1 s.
   fps: number | null;
   // Mean rVFC presentationTime − receiveTime; null without frames or without receiveTime.
   latency: number | null;
+  // Freezes so far and the session's length, ms: Freezes & Stalls is their ratio.
   freezeMs: number;
   sessionMs: number;
   // Share of the time since the previous sample that the tab was hidden or the video paused, 0…1.
   hidden: number;
 }
 
+// One poll of the selected stream: its getStats() reports, and the element, frames and long tasks the session adds.
 export interface Snapshot {
   element?: ElementInfo;
   frames?: FramesInfo;
@@ -55,21 +58,20 @@ export interface Snapshot {
 
 // How to find the selected stream's reports: by track id, or by kind + mid when
 // the browser does not report trackIdentifier.
-export interface StreamSelector {
+interface StreamSelector {
   videoTrackId?: string;
   audioTrackId?: string;
   videoMid?: string | null;
   audioMid?: string | null;
 }
 
+// The selected stream's first video and first audio track, each with the mid of the transceiver that receives it.
 export const createSelector = (
   peerConnection: RTCPeerConnection,
   tracks: MediaStreamTrack[]
 ): StreamSelector => {
   const selector: StreamSelector = {};
-  const transceivers = peerConnection.getTransceivers
-    ? peerConnection.getTransceivers()
-    : [];
+  const transceivers = peerConnection.getTransceivers();
 
   tracks.forEach((track) => {
     const transceiver = transceivers.find((t) => t.receiver.track === track);
@@ -88,6 +90,7 @@ export const createSelector = (
   return selector;
 };
 
+// The inbound-rtp of a track: by trackIdentifier, else by kind and mid; undefined without a track id.
 export const findInbound = (
   inbound: RtpStats[],
   kind: string,
@@ -104,17 +107,18 @@ export const findInbound = (
   );
 };
 
+// The <video>'s sizes, dropped frames and readyState, read with each poll.
 export const readElement = (video: HTMLVideoElement): ElementInfo => ({
   videoWidth: video.videoWidth,
   videoHeight: video.videoHeight,
   clientWidth: video.clientWidth,
   clientHeight: video.clientHeight,
-  droppedFrames: video.getVideoPlaybackQuality
-    ? video.getVideoPlaybackQuality().droppedVideoFrames
-    : null,
+  droppedFrames: video.getVideoPlaybackQuality().droppedVideoFrames,
   readyState: video.readyState,
 });
 
+// The selected stream's reports: inbound-rtp and codecs, its transport and selected candidate pair (else a nominated
+// succeeded pair) with the candidates, and the outgoing video's layers with their media source.
 export const extract = (
   report: RTCStatsReport,
   selector: StreamSelector
@@ -152,9 +156,7 @@ export const extract = (
   const selectedTransport = videoTransport ?? transport;
 
   let pair = selectedTransport && get(selectedTransport.selectedCandidatePairId);
-  if (!pair) {
-    pair = pairs.find((p) => p.nominated && p.state === "succeeded");
-  }
+  pair ??= pairs.find((p) => p.nominated && p.state === "succeeded");
 
   return {
     video,

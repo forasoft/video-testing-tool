@@ -1,3 +1,4 @@
+// Icon of the Bitrate tile.
 import React from "react";
 
 export const BitrateIcon = () => (

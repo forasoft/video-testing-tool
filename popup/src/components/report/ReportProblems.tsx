@@ -1,3 +1,4 @@
+// The Problems card of the Report, whose rows open their cards in place.
 import React, { useContext } from "react";
 import styles from "./Report.module.css";
 import listStyles from "../expanded/ProblemsList.module.css";
@@ -12,6 +13,7 @@ interface ReportProblemsProps {
   now: number;
 }
 
+// Points down, at the card that opens under the row (the Timeline's points right); its row's `open` turns it up.
 const Chevron = () => (
   <svg className={listStyles.chevron} width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
     <path d="M3.5 6 8 10.5 12.5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />

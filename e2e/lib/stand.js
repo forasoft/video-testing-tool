@@ -6,6 +6,7 @@ import { STAND_URL } from "./paths.js";
 const START_TRIES = 3;
 const CONNECT_TIMEOUT_MS = 15_000;
 
+// The stand page of a test; the errors of its console are collected from the start.
 export class Stand {
   constructor(context, page) {
     this.context = context;
@@ -21,6 +22,7 @@ export class Stand {
     page.on("download", (download) => download.cancel().catch(() => {}));
   }
 
+  // Opens the stand in the browser's first tab, once both the extension's window.__vtt and window.stand are there.
   static async open(context) {
     const page = context.pages()[0] ?? (await context.newPage());
     const stand = new Stand(context, page);
@@ -40,6 +42,7 @@ export class Stand {
     };
   }
 
+  // Whether the stand's coturn answers: start() picks the route by it, and network tests are skipped without it.
   async turnUp() {
     return this.page.evaluate(() => fetch("/api/turn").then((r) => r.json()).then((turn) => turn.up).catch(() => false));
   }
@@ -95,6 +98,7 @@ export class Stand {
     await this.page.waitForFunction(() => window.__vtt.state() === "live", null, { timeout: 10_000 });
   }
 
+  // What the extension reports of its latest session, read from window.__vtt of the page.
   state() {
     return this.page.evaluate(() => window.__vtt.state());
   }

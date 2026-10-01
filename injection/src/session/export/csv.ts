@@ -3,10 +3,12 @@
 import { SAMPLE_FIELDS } from "shared/constants/sampleFields";
 import { ExportSource, exportSamples } from "./json";
 
+// U+FEFF, invisible here: Excel reads the file as UTF-8 only with it.
 const BOM = "﻿";
 // RFC 4180 line breaks; Numbers and Excel read them as well as LF.
 const EOL = "\r\n";
 
+// Header rows of the events and problems sections.
 export const EVENT_COLUMNS = ["t", "kind", "label"];
 export const PROBLEM_COLUMNS = ["id", "type", "category", "severity", "t_start", "t_end", "duration_s", "one_line", "likely_cause", "check"];
 
@@ -23,6 +25,7 @@ const row = (cells: (string | number | null)[]): string => cells.map(csvCell).jo
 
 const tenths = (s: number) => Math.round(s * 10) / 10;
 
+// The CSV text: `# samples`, `# events` and `# problems` sections; sample values rounded as in the JSON.
 export const sessionCsv = (source: ExportSource): string => {
   const samples = exportSamples(source.buffer);
   const lines = ["# samples", row([...SAMPLE_FIELDS])];

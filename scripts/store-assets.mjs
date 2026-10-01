@@ -24,6 +24,7 @@ const PREVIOUS_RUN_MS = 33_000;
 // Before the drop the sparklines of Compact (the last 120 s) are almost full.
 const BEFORE_DROP_MS = 100_000;
 
+// build/ zipped for the store as store/streamtest-<version>.zip, with the version of build/manifest.json.
 function packageZip() {
   const { version } = JSON.parse(fs.readFileSync(path.join(buildDir, "manifest.json"), "utf8"));
   const zip = path.join(storeDir, `streamtest-${version}.zip`);
@@ -33,6 +34,7 @@ function packageZip() {
   console.log(`${path.relative(root, zip)} — ${(fs.statSync(zip).size / 1024).toFixed(0)} KB`);
 }
 
+// The small promo tile (store/promo-440x280.png): the logo, the name, the tagline and a bitrate line with a drop.
 async function promoTile(context) {
   const logo = fs.readFileSync(path.join(root, "popup", "public", "logo512.png")).toString("base64");
   const page = await context.newPage();
@@ -85,6 +87,7 @@ const CALL_CSS = `
   .callBar svg { width: 22px; height: 22px; fill: #fff; }
 `;
 
+// The call's buttons (microphone, camera, screen, leave), only for the look.
 const CALL_BAR = `
   <span><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/>
     <path d="M6 11a6 6 0 0 0 12 0" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
@@ -96,6 +99,7 @@ const CALL_BAR = `
     <path d="M3 13.5c5-4.7 13-4.7 18 0l-2.2 2.6-3.3-1.3v-2.2a9.5 9.5 0 0 0-7 0v2.2l-3.3 1.3z"/></svg></span>
 `;
 
+// The stand page as a call: CALL_CSS, a participant's name and the call's buttons.
 async function dressAsCall(page) {
   await page.addStyleTag({ content: CALL_CSS });
   await page.evaluate((bar) => {
@@ -144,11 +148,13 @@ async function startCall(page) {
   throw new Error("The stand's call did not connect on the TURN udp route");
 }
 
+// A session on the receiver video, as the context menu item starts it; waits until it is live.
 async function testThisStream(page) {
   await page.evaluate(() => window.stand.testThisStream());
   await page.waitForFunction(() => window.__vtt.state() === "live", null, { timeout: 10_000 });
 }
 
+// Waits for a Bandwidth drop that is going on (`ended` false) or has ended (`ended` true).
 const waitForDrop = (page, ended, timeout) => page.waitForFunction(
   (wantEnded) => window.__vtt.problems().some((p) => p.type === "bandwidth_drop" && (p.tEnd !== null) === wantEnded),
   ended,
@@ -158,12 +164,14 @@ const waitForDrop = (page, ended, timeout) => page.waitForFunction(
 // The pointer away from the panel: a hovered button would show its tooltip on the screenshot.
 const park = (page) => page.mouse.move(100, 300);
 
+// A screenshot of the window as store/screenshots/<name>.png.
 async function shoot(page, name) {
   const file = path.join(shotsDir, `${name}.png`);
   await page.screenshot({ path: file });
   console.log(path.relative(root, file));
 }
 
+// The stand of STAND_ENV as a child process, once its /api/turn answers; fails if TURN is not running.
 async function startStand() {
   const stand = spawn(process.execPath, [path.join(root, "stand", "server.mjs")], {
     env: { ...process.env, ...STAND_ENV },
@@ -185,6 +193,8 @@ async function startStand() {
   throw new Error(`The stand did not start on ${STAND_URL}`);
 }
 
+// Run 1: a clean session of 33 s, the previous run of the Report. Run 2: Throttle 300 kbit and its Bandwidth drop,
+// shot in Compact, on the Timeline, as a problem card and in the Report.
 async function screenshots(context) {
   const page = context.pages()[0] ?? (await context.newPage());
   const errors = [];
@@ -256,6 +266,7 @@ async function screenshots(context) {
   console.log(fromExtension.length ? `extension errors:\n${fromExtension.join("\n")}` : "no extension errors");
 }
 
+// The ZIP first (all that `--zip` makes), then the tile and the screenshots in a Chromium with build/ loaded.
 async function main() {
   if (!fs.existsSync(path.join(buildDir, "manifest.json"))) {
     throw new Error("No build/: npm run build");

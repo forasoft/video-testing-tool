@@ -4,21 +4,23 @@
 import { Description, Detector, median, Problem, ProblemEngine } from "./engine";
 
 // Start: |av_offset| > 200 ms 3 samples in a row; end: < 120 ms 3 samples in a row.
-export const START_MS = 200;
+const START_MS = 200;
 export const START_SAMPLES = 3;
-export const END_MS = 120;
+const END_MS = 120;
 export const END_SAMPLES = 3;
 
 const max = (values: number[]) => (values.length ? Math.max(...values) : null);
 const min = (values: number[]) => (values.length ? Math.min(...values) : null);
 const ms = (value: number | null) => (value === null ? "—" : String(Math.round(value)));
 
+// Detects Audio / video out of sync: |av_offset| above START_MS for START_SAMPLES samples in a row.
 export class AvSync implements Detector {
   readonly type = "av_sync";
   // Times of the samples out of sync in a row, and of the ones back in sync in a row.
   private out: number[] = [];
   private back: number[] = [];
 
+  // Opens at the first of the samples out of sync in a row, closes at the first of those back in sync.
   onSample(engine: ProblemEngine): void {
     const offset = engine.sample?.av_offset ?? null;
     const open = engine.current(this.type);
@@ -48,6 +50,7 @@ export class AvSync implements Detector {
     }
   }
 
+  // The offset shown is its median over the problem; positive — audio ahead (its playout timestamp is later).
   describe(problem: Problem, engine: ProblemEngine): Description {
     const { tStart, tEnd } = problem;
     // The samples of the problem: up to now, or up to its end (the first sample back in sync).

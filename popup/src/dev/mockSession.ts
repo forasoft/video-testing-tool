@@ -12,23 +12,10 @@
 import { SAMPLE_FIELDS, SampleField, SampleValues } from "../../../shared/constants/sampleFields";
 import { groupThousands } from "../../../shared/format";
 import {
-  ConnectionInfo,
-  EventKind,
-  EventMessage,
-  EventTone,
-  FpsMessage,
-  GetHistoryMessage,
-  MESSAGES,
-  PanelMode,
-  ProblemCategory,
-  ProblemMessage,
-  SampleMessage,
-  SessionMessage,
-  SetModeMessage,
-  Severity,
-  StreamRow,
+  ConnectionInfo, EventKind, EventMessage, EventTone, FpsMessage, GetHistoryMessage, MESSAGES, PanelMode, ProblemCategory, ProblemMessage, SampleMessage, SessionMessage, SetModeMessage, Severity, StreamRow,
 } from "../../../shared/protocol";
 import { CONST } from "../CONST/const";
+import { onPageMessage } from "../utils/page";
 import { START_ERRORS } from "../../../injection/src/events/context/startErrors";
 // The injection's own pure functions: the mock shows what a real session would show.
 import { SampleBuffer } from "../../../injection/src/session/buffer";
@@ -113,6 +100,7 @@ const PREVIOUS_RUN: RunSummary = {
   p50BitrateKbps: 1290,
 };
 
+// From a to b as k goes 0 → 1; k is clamped, so a ramp stays at b after its end.
 const lerp = (a: number, b: number, k: number) => a + (b - a) * Math.max(0, Math.min(1, k));
 
 // The same noise for the same second and channel: −amp…amp.
@@ -128,6 +116,8 @@ type Piece = [until: number, value: () => number];
 const piecewise = (t: number, pieces: Piece[]): number =>
   (pieces.find(([until]) => t < until) ?? pieces[pieces.length - 1])[1]();
 
+// Received video bitrate, kbps: 0 before the first frame, 1.8 Mbit/s, the drop to ~205 kbps at 0:38–0:46, a dip
+// when the path changes to relay at 1:16, and ~1.5 Mbit/s again from 1:35.
 const bitrate = (t: number): number => Math.max(0, piecewise(t, [
   [1.8, () => 0],
   [8, () => lerp(0, 1800, (t - 1.8) / 6.2)],
@@ -142,6 +132,8 @@ const bitrate = (t: number): number => Math.max(0, piecewise(t, [
   [Infinity, () => 1540 + noise(t, 1, 60)],
 ]));
 
+// The channel estimate (avail_in), kbps, dashed on the Bandwidth drop card: 2.4 Mbit/s falls to 0.4 at 0:38–0:44,
+// the cause that card names.
 const channelEstimate = (t: number): number => Math.max(0, piecewise(t, [
   [6, () => lerp(300, 2400, t / 6)],
   [38, () => 2400 + noise(t, 2, 90)],
@@ -160,6 +152,8 @@ const hiddenShare = (t: number): number => Math.max(0, Math.min(t, HIDDEN[1]) - 
 // The tab is hidden at t: Frame rate and Freezes & Stalls show `—` (PRD §14.4).
 const suspendedAt = (t: number): { suspended?: "hidden" } => (t >= HIDDEN[0] && t < HIDDEN[1] ? { suspended: "hidden" } : {});
 
+// Rendered frames per second: ~30, 24.5 on the 360p layer, 17 in the page jank at 1:02; 0 before the first frame
+// and in the freeze.
 const frameRate = (t: number): number => {
   // No frames are rendered while the tab is hidden.
   if (t < 1.8 || (t >= FREEZE[0] && t <= FREEZE[1]) || hiddenShare(t) === 1) {
@@ -177,6 +171,7 @@ const frameRate = (t: number): number => {
   ])));
 };
 
+// Packet loss, %: up to 6.2 % in the bandwidth drop and ~1.9 % for a moment after the switch to relay.
 const loss = (t: number): number => Math.max(0, piecewise(t, [
   [8, () => 0.35 + noise(t, 4, 0.1)],
   [38.5, () => 0.22 + noise(t, 4, 0.1)],
@@ -189,6 +184,7 @@ const loss = (t: number): number => Math.max(0, piecewise(t, [
   [Infinity, () => 0.25 + noise(t, 4, 0.1)],
 ]));
 
+// Video QP: ~28 at 720p, up to 45 in the bandwidth drop, 35 on the 360p layer.
 const qp = (t: number): number => piecewise(t, [
   [8, () => 34],
   [38.5, () => 28 + noise(t, 5, 0.8)],
@@ -209,6 +205,7 @@ const halfRtt = (t: number): number => piecewise(t, [
   [Infinity, () => 46 + noise(t, 6, 1.6)],
 ]);
 
+// Video jitter buffer delay, ms: ~92, up to 620 in the bandwidth drop, 210 after the switch to relay, then ~104.
 const jitterBuffer = (t: number): number => piecewise(t, [
   [8, () => lerp(220, 95, t / 8)],
   [38.5, () => 92 + noise(t, 7, 6)],
@@ -219,6 +216,7 @@ const jitterBuffer = (t: number): number => piecewise(t, [
   [Infinity, () => lerp(210, 104, (t - 82) / 20)],
 ]);
 
+// Decode time per frame, ms: ~13, up to 29 in the bandwidth drop, ~18 on the 360p layer, ~15 after it.
 const decode = (t: number): number => piecewise(t, [
   [38.5, () => 13 + noise(t, 8, 1.2)],
   [50, () => lerp(14, 29, (t - 38.5) / 11.5)],
@@ -245,6 +243,7 @@ interface ScriptedProblem {
   check: string;
 }
 
+// The problems of the scenario, as the injection finds them in such a run.
 const PROBLEMS: ScriptedProblem[] = [
   {
     id: 1,
@@ -358,6 +357,7 @@ const problemsAt = (t: number, buffer: SampleBuffer): ProblemMessage[] => PROBLE
     };
   });
 
+// The sample of second t: the scenario's values in the injection's fields; a field the mock does not make stays null.
 const sampleAt = (t: number): SampleValues => {
   const s = {} as SampleValues;
   SAMPLE_FIELDS.forEach((field) => {
@@ -436,11 +436,14 @@ const connectionAt = (t: number, rttMs: number | null): ConnectionInfo => {
 
 // ---- sending
 
-const post = (id: string, data: unknown) => window.postMessage({ id, data }, "*");
+// To this window ("/": to this origin alone): in `vite dev` the popup is the top page, and what it posts to its parent
+// comes here as well.
+const post = (id: string, data: unknown) => window.postMessage({ id, data }, "/");
 
 // main.js shrinks Expanded to the window minus 20 px when the window is smaller than this (PRD §8.1).
 const EXPANDED_MIN_WINDOW = { width: 940, height: 720 };
 const WINDOW_MARGIN = 20;
+// The mode drawn last: a resize of the window draws it again.
 let framed: PanelMode | null = null;
 
 // main.js is not there in `vite dev`: the page gets the panel's size for the mode instead.
@@ -466,19 +469,21 @@ const drawFrame = (mode: PanelMode) => {
 
 const isMode = (value: string | null): value is PanelMode => MODES.includes(value as PanelMode);
 
+// `?mock=start&error=…` → the text of that error, as the injection sends it.
 const ERRORS: Record<string, string> = {
   video: START_ERRORS.noVideo,
   connection: START_ERRORS.noConnection,
   stats: START_ERRORS.noStats,
 };
 
+// Starts what the URL asks for (`?mock=…`, see the top of the file): the start screen or a session of the scenario.
 export const startMockSession = (): void => {
   window.addEventListener("resize", () => framed && drawFrame(framed));
   const params = new URLSearchParams(window.location.search);
   const mode = params.get("mock");
   // The start screen is drawn at the Compact size, as main.js sizes it (VTT_IS_MAIN_SCREEN).
-  window.addEventListener("message", (e) => {
-    if (e.data?.id === CONST.VTT_IS_MAIN_SCREEN && e.data.value) {
+  onPageMessage((message) => {
+    if (message.id === CONST.VTT_IS_MAIN_SCREEN && (message.data as { value?: boolean } | undefined)?.value) {
       drawFrame("compact");
     }
   });
@@ -501,9 +506,10 @@ export const startMockSession = (): void => {
   const others = params.get("streams") === "none" ? [] : OTHER_STREAMS;
 
   // The popup asks for modes with VTT_SET_MODE; here it reaches the popup itself, like main.js's answer.
-  window.addEventListener("message", (e) => {
-    if (e.data?.id === MESSAGES.VTT_SET_MODE && isMode((e.data.data as SetModeMessage)?.mode)) {
-      drawFrame((e.data.data as SetModeMessage).mode);
+  onPageMessage((message) => {
+    const asked = (message.data as Partial<SetModeMessage> | undefined)?.mode ?? null;
+    if (message.id === MESSAGES.VTT_SET_MODE && isMode(asked)) {
+      drawFrame(asked);
     }
   });
 
@@ -516,7 +522,7 @@ export const startMockSession = (): void => {
     otherStreamsCount: 0,
   };
   post(CONST.CONTEXT_MENU_VTT_WAS_CLICKED, {});
-  post(MESSAGES.VTT_SET_MODE, { mode, tab } as SetModeMessage);
+  post(MESSAGES.VTT_SET_MODE, { mode, tab } satisfies SetModeMessage);
   post(MESSAGES.VTT_SESSION, session);
 
   const buffer = new SampleBuffer(Number(params.get("buffer")) || undefined);
@@ -572,25 +578,26 @@ export const startMockSession = (): void => {
 
   // Whole session and dragged windows (VTT_GET_HISTORY), answered from the mock's own history;
   // Mark (VTT_MARK) — a mark at the current second.
-  window.addEventListener("message", (e) => {
-    if (e.data?.id === MESSAGES.VTT_EXPORT && ["json", "csv"].includes(e.data.data?.format)) {
+  onPageMessage((message) => {
+    const format = (message.data as { format?: unknown } | undefined)?.format;
+    if (message.id === MESSAGES.VTT_EXPORT && (format === "json" || format === "csv")) {
       // A moment of `Preparing…`, as a long session takes in the injection.
-      window.setTimeout(() => exportFile(e.data.data.format), 400);
+      window.setTimeout(() => exportFile(format), 400);
     }
-    if (e.data?.id === MESSAGES.VTT_GET_HISTORY) {
+    if (message.id === MESSAGES.VTT_GET_HISTORY) {
       const source = {
         buffer, events, problems: problemsAt(t - 1, buffer), hidden: t - 1 > HIDDEN[0] ? [{ start: HIDDEN[0], end: Math.min(t - 1, HIDDEN[1]) }] : [],
       };
-      post(MESSAGES.VTT_HISTORY, historyMessage(source, e.data.data as GetHistoryMessage));
+      post(MESSAGES.VTT_HISTORY, historyMessage(source, message.data as GetHistoryMessage));
     }
     // The Report (VTT_GET_REPORT): its Distribution of the mock's samples; Copy summary (VTT_COPY_SUMMARY).
-    if (e.data?.id === MESSAGES.VTT_GET_REPORT) {
+    if (message.id === MESSAGES.VTT_GET_REPORT) {
       const end = Math.max(0, t - 1);
       const stats = reportStats(distributionAt(end));
       const current = runSummary(session.startedAt, end, verdict(problemsAt(end, buffer), end), stats);
       post(MESSAGES.VTT_REPORT, reportMessage(stats, previous ? previousRunLine(previous, current) : null));
     }
-    if (e.data?.id === MESSAGES.VTT_COPY_SUMMARY) {
+    if (message.id === MESSAGES.VTT_COPY_SUMMARY) {
       const end = Math.max(0, t - 1);
       post(MESSAGES.VTT_SUMMARY_TEXT, {
         text: summaryText({
@@ -603,7 +610,7 @@ export const startMockSession = (): void => {
         }),
       });
     }
-    if (e.data?.id === MESSAGES.VTT_MARK) {
+    if (message.id === MESSAGES.VTT_MARK) {
       const marks = events.filter((event) => event.kind === "mark").length;
       addEvent({
         t: Math.max(0, t - 1), kind: "mark", label: `Mark ${marks + 1}`, tone: "blue",
@@ -661,17 +668,19 @@ export const startMockSession = (): void => {
     session = { ...session, state: "stopped" };
     post(MESSAGES.VTT_SESSION, session);
   };
-  window.addEventListener("message", (e) => {
-    if (e.data?.id === CONST.VTT_STOP_CALCULATION) {
+  onPageMessage(({ id }) => {
+    if (id === CONST.VTT_STOP_CALCULATION) {
       stop();
     }
     // Close in Expanded: main.js would hide the panel; here the start screen shows at once, as when it is opened again.
-    if (e.data?.id === CONST.VTT_HIDE) {
+    if (id === CONST.VTT_HIDE) {
       stop();
       post(CONST.VTT_WAS_HIDDEN, {});
     }
   });
 
+  // One poll of the injection, every second / `speed`: the events, sample and problems of second t, Other streams
+  // every 5 s; `&disconnect` and `&stop` end the session at their second.
   const tick = () => {
     if (disconnectAt !== null && t > disconnectAt) {
       disconnect();

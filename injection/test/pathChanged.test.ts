@@ -113,4 +113,41 @@ describe("Connection path changed", () => {
     expect(problems).toEqual([expect.objectContaining({ tStart: 30, tEnd: 35 })]);
     expect(problems[0].card.rows[0]).toEqual(["Path", "host→host · udp → relay→relay · tcp"]);
   });
+
+  // A change to a non-relay pair is judged 10 s late: a relay change after it has opened its problem by then.
+  const twoChanges = (relayAt: number) => {
+    const samples = makeSamples({
+      duration: 60,
+      base: { ...STEADY, ...HOST },
+      segments: [
+        { from: 30, to: relayAt, values: { pair_type: 1, pair_changes: 2, rtt: 11 } },
+        { from: relayAt, to: 61, values: { pair_type: 3, pair_proto: 1, pair_changes: 3, rtt: 12 } },
+      ],
+    });
+    const pathAt = (t: number) => {
+      if (t >= relayAt) {
+        return connection("relay", "relay", "tcp");
+      }
+      return t >= 30 ? connection("srflx", "srflx", "udp") : connection("host", "host", "udp");
+    };
+    const { problems } = runDetectors([new PathChanged(() => null)], samples, { connection: pathAt });
+    return [...problems].sort((a, b) => a.tStart - b.tStart);
+  };
+
+  it("starts the relay's problem at a non-relay change judged late within 3 s before it", () => {
+    const problems = twoChanges(32);
+
+    expect(problems).toEqual([expect.objectContaining({ tStart: 30, tEnd: 35, oneLine: "→ relay · tcp, RTT 5 → 12 ms" })]);
+    expect(problems[0].card.rows[0]).toEqual(["Path", "host→host · udp → relay→relay · tcp"]);
+    expect(problems[0].card.likelyCause).toBe("The direct path failed; media now goes through a TURN relay (tcp).");
+  });
+
+  it("gives a non-relay change judged late a problem of its own when it is more than 3 s before the relay's", () => {
+    const problems = twoChanges(38);
+
+    expect(problems).toEqual([
+      expect.objectContaining({ tStart: 30, tEnd: 33, oneLine: "→ srflx · udp, RTT 5 → 11 ms" }),
+      expect.objectContaining({ tStart: 38, tEnd: 41, oneLine: "→ relay · tcp, RTT 11 → 12 ms" }),
+    ]);
+  });
 });

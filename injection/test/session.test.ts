@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("src/utils/postToPopup", () => ({ postToPopup: vi.fn(), postBatch: (send: () => void) => send() }));
 vi.mock("src/utils/downloadFile", () => ({ downloadFile: vi.fn() }));
 
-import { MESSAGES } from "shared/protocol";
+import { MESSAGES, SessionMessage } from "shared/protocol";
 import { downloadFile } from "src/utils/downloadFile";
 import { postToPopup } from "src/utils/postToPopup";
 import { lastRuns } from "src/session/lastRun";
@@ -71,6 +71,7 @@ const makeConnection = (getStats: () => Promise<RTCStatsReport>) => {
     signalingState: "stable",
     localDescription: { sdp: "v=0 local" } as { sdp: string } | null,
     remoteDescription: { sdp: "v=0 remote" } as { sdp: string } | null,
+    setRemoteDescription: vi.fn(() => Promise.resolve()),
     addEventListener: (type: string, fn: Listener) => {
       listeners[type] = [...(listeners[type] ?? []), fn];
     },
@@ -152,10 +153,10 @@ describe("session", () => {
     expect(getActiveSession()?.series("v_w", 5)).toEqual([1280, 1280, 1280]);
   });
 
-  it("posts the first rendered frame as a VTT_EVENT and keeps it in events()", async () => {
+  it("posts the first rendered frame as a VTT_EVENT and keeps it in events()", () => {
     const video = makeVideo();
     const { session } = start(resolved(), { video });
-    const onFrame = video.requestVideoFrameCallback.mock.calls[0][0];
+    const onFrame = video.requestVideoFrameCallback.mock.calls[0][0] as VideoFrameRequestCallback;
 
     onFrame(performance.now() + 1840, { presentationTime: 0, presentedFrames: 1 } as VideoFrameCallbackMetadata);
 
@@ -179,7 +180,7 @@ describe("session", () => {
       videoElement: video as unknown as HTMLVideoElement,
       tracks: tracks as unknown as MediaStreamTrack[],
     });
-    const onFrame = video.requestVideoFrameCallback.mock.calls[0][0];
+    const onFrame = video.requestVideoFrameCallback.mock.calls[0][0] as VideoFrameRequestCallback;
 
     onFrame(1600 + 5650, { presentationTime: 0, presentedFrames: 1 } as VideoFrameCallbackMetadata);
 
@@ -191,9 +192,11 @@ describe("session", () => {
     const { session } = start();
 
     expect(session.state()).toBe("live");
-    expect(posted(MESSAGES.VTT_SESSION)).toEqual([
-      { state: "live", startedAt: expect.any(Number), hostname: "localhost", hasOutbound: false, hasAudio: true, otherStreamsCount: 0 },
-    ]);
+    const sessions = posted(MESSAGES.VTT_SESSION) as SessionMessage[];
+    expect(sessions).toHaveLength(1);
+    const { startedAt, ...message } = sessions[0];
+    expect(startedAt).toBeTypeOf("number");
+    expect(message).toEqual({ state: "live", hostname: "localhost", hasOutbound: false, hasAudio: true, otherStreamsCount: 0 });
   });
 
   it("keeps a null sample on a single getStats error and disconnects after 3 in a row", async () => {
@@ -406,9 +409,9 @@ describe("session", () => {
     await vi.advanceTimersByTimeAsync(SAMPLE_INTERVAL_MS * 31 + 400);
     long.session.stop();
 
-    const [[event]] = vi.mocked(window.dispatchEvent).mock.calls as unknown as [CustomEvent][];
+    const [[event]] = vi.mocked(window.dispatchEvent).mock.calls as unknown as [CustomEvent<string>][];
     expect(event.type).toBe("VTT_STORE_LAST_RUN");
-    expect(JSON.parse(event.detail)).toMatchObject({ durationS: 31.4, verdict: "OK", degradedS: 0, freezes: 0 });
+    expect(JSON.parse(event.detail) as unknown).toMatchObject({ durationS: 31.4, verdict: "OK", degradedS: 0, freezes: 0 });
     // Once: a second stop saves nothing.
     long.session.stop();
     expect(window.dispatchEvent).toHaveBeenCalledTimes(1);
@@ -425,7 +428,7 @@ describe("session", () => {
     await vi.advanceTimersByTimeAsync(SAMPLE_INTERVAL_MS * 32);
     unload();
     expect(window.dispatchEvent).toHaveBeenCalledTimes(2);
-    expect(JSON.parse((vi.mocked(window.dispatchEvent).mock.calls[1][0] as CustomEvent).detail).durationS).toBe(32);
+    expect((JSON.parse((vi.mocked(window.dispatchEvent).mock.calls[1][0] as CustomEvent<string>).detail) as { durationS: number }).durationS).toBe(32);
     expect(left.session.state()).toBe("live");
   });
 
@@ -510,7 +513,7 @@ describe("session", () => {
     expect(posted(MESSAGES.VTT_EXPORT_READY)).toEqual([{ format: "json", url, filename: fileName }]);
     const blob = createObjectURL.mock.calls[0][0] as Blob;
     expect(blob.type).toBe("application/json");
-    const data = JSON.parse(await blob.text());
+    const data = JSON.parse(await blob.text()) as { samples: { t: number[] }; session: { state: string } };
     expect(data.samples.t).toEqual([0, 1, 2]);
     expect(data.session.state).toBe("stopped");
 

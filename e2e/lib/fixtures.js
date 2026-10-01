@@ -6,6 +6,7 @@ import { chromium, test as base } from "@playwright/test";
 import { BUILD } from "./paths.js";
 import { Stand } from "./stand.js";
 
+// `test` with these fixtures: the specs import it and `expect` from here instead of @playwright/test.
 export const test = base.extend({
   // More Chromium flags for the tests of a file: test.use({ browserArgs: [...] }).
   browserArgs: [[], { option: true }],
@@ -34,6 +35,7 @@ export const test = base.extend({
     fs.rmSync(profile, { recursive: true, force: true });
   },
 
+  // The stand open in that browser; after the test its network is cleaned and its calls are closed.
   stand: async ({ context }, use) => {
     const stand = await Stand.open(context);
     await use(stand);

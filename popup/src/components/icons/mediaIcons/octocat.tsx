@@ -1,3 +1,4 @@
+// Icon of the GitHub link.
 import React from "react";
 
 export const OctocatIcon: React.FC = () => (

@@ -35,6 +35,7 @@ export const degradedSeconds = (problems: ProblemMessage[], t: number): number =
   return total;
 };
 
+// The verdict as of t: OK without problems, Severe with a severe one, else Degraded; Σ rounded to 0.1 s.
 export const verdict = (problems: ProblemMessage[], t: number): VerdictInfo => {
   const worst = worstProblem(problems, t);
   const total = degradedSeconds(problems, t);

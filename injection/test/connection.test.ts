@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { connectionInfo, connectionTooltip, describeCandidate, turnAddress } from "src/session/connection";
-import { extract, RtpStats } from "src/session/extract";
+import { extract } from "src/session/extract";
 import { findStat, loadSnapshots, patchStat, StatsList, toReport } from "./fixtures";
 
 // Stand, TURN udp route: both sides are relay candidates of the stand's coturn.
@@ -76,9 +76,9 @@ describe("connection", () => {
   it("formats the TURN address and candidates the browser reports partly", () => {
     expect(turnAddress("turns:turn.example.com:443?transport=tcp")).toBe("turn.example.com:443");
     expect(turnAddress("turn:198.51.100.4:3478")).toBe("198.51.100.4:3478");
-    expect(describeCandidate({ id: "c", timestamp: 0, type: "remote-candidate", candidateType: "host", protocol: "udp" } as RtpStats))
+    expect(describeCandidate({ id: "c", timestamp: 0, type: "remote-candidate", candidateType: "host", protocol: "udp" }))
       .toBe("host udp");
-    expect(describeCandidate({ id: "c", timestamp: 0, type: "local-candidate", candidateType: "srflx", ip: "203.0.113.17", port: 51234, protocol: "udp" } as RtpStats))
+    expect(describeCandidate({ id: "c", timestamp: 0, type: "local-candidate", candidateType: "srflx", ip: "203.0.113.17", port: 51234, protocol: "udp" }))
       .toBe("srflx 203.0.113.17:51234 udp");
     expect(connectionTooltip()).toEqual([]);
   });

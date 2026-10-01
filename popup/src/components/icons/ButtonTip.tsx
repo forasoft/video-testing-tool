@@ -1,3 +1,4 @@
+// The tooltip of the panel's icon buttons (Collapse, Close, Back to main).
 import React from "react";
 import styles from "./ButtonTip.module.css";
 

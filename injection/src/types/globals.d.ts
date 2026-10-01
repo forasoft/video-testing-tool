@@ -20,10 +20,10 @@ interface VttDebugApi {
   export: (format?: "json" | "csv") => import("shared/protocol").ExportReadyMessage | null;
   // The load of StreamTest (plan T5.4, PRD §18).
   debug: {
-    // await __vtt.debug.perf(): getStats() calls, the rVFC callback, the panel's renders and redraws over the last
+    // `await __vtt.debug.perf()`: getStats() calls, the rVFC callback, the panel's renders and redraws over the last
     // windowS seconds (10 by default), the session's memory, and what goes beyond the limits of §18.
     perf: (windowS?: number) => Promise<import("src/session/debug").PerfReport>;
-    // await __vtt.debug.fastForward(3600): the live session runs that many seconds further at once — the samples
+    // `await __vtt.debug.fastForward(3600)`: the live session runs that many seconds further at once — the samples
     // recorded so far are replayed through the buffer, the events and the detectors. null without a live session.
     fastForward: (seconds?: number) => Promise<import("src/session/session").FastForward | null>;
     // The export files of the latest session made in memory: their size, kB, and the time to make them, ms.
@@ -33,4 +33,6 @@ interface VttDebugApi {
 
 interface Window {
   __vtt: VttDebugApi;
+  // The page's connections the RTCPeerConnection wrapper keeps, for debugging from the console.
+  vttInternal: import("src/types/vtt-internal").VTTInternal;
 }

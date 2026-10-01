@@ -31,8 +31,9 @@ describe("perf counters of the page", () => {
 
   it("count getStats() calls per connection: the selected one per second, the busiest other per 5 s", async () => {
     const report = {} as RTCStatsReport;
-    const peer = (): RTCPeerConnection => ({ getStats: vi.fn(() => Promise.resolve(report)) }) as unknown as RTCPeerConnection;
-    const [selected, other, third] = [peer(), peer(), peer()];
+    const statsOfSelected = vi.fn(() => Promise.resolve(report));
+    const peer = (getStats = vi.fn(() => Promise.resolve(report))): RTCPeerConnection => ({ getStats }) as unknown as RTCPeerConnection;
+    const [selected, other, third] = [peer(statsOfSelected), peer(), peer()];
     const now = performance.now();
     for (let s = 0; s < 10; s++) {
       perf.statsCalls.add(connectionId(selected), now - 9500 + s * 1000);
@@ -44,7 +45,7 @@ describe("perf counters of the page", () => {
     perf.statsCalls.add(connectionId(selected), now - 20_000);
 
     expect(await getStats(selected)).toBe(report);
-    expect(selected.getStats).toHaveBeenCalledTimes(1);
+    expect(statsOfSelected).toHaveBeenCalledTimes(1);
     expect(statsRates(selected, 10, now + 1)).toEqual({ getStatsPerS: 1.1, otherGetStatsPer5S: 1 });
     expect(statsRates(null, 10, now + 1).getStatsPerS).toBeNull();
     expect(connectionId(selected)).not.toBe(connectionId(other));
@@ -53,11 +54,15 @@ describe("perf counters of the page", () => {
 
 describe("the panel's answer", () => {
   const frame = { postMessage: vi.fn() };
+  const extension = "chrome-extension://iccaenpebpeacjofjkikdmeejlpeohma";
+  // The panel's iframe as main.js adds it; null — before it is added.
+  let panel: { src: string; contentWindow: typeof frame } | null;
 
   beforeEach(() => {
     vi.useFakeTimers();
     frame.postMessage.mockClear();
-    vi.stubGlobal("window", { frames: { vttFrame: frame } });
+    panel = { src: `${extension}/index.html?page=http%3A%2F%2Flocalhost%3A8080`, contentWindow: frame };
+    vi.stubGlobal("document", { getElementById: (id: string) => (id === "vttFrame" ? panel : null) });
   });
 
   afterEach(() => {
@@ -70,13 +75,29 @@ describe("the panel's answer", () => {
       view: "timeline", rendersPerS: 1, fpsRendersPerS: 4, redrawMs: { mean: 2, p95: 3, max: 3.5 },
     };
     const asked = askPanel(10);
-    expect(frame.postMessage).toHaveBeenCalledWith({ id: MESSAGES.VTT_GET_PERF, data: { windowS: 10 } }, "*");
+    expect(frame.postMessage).toHaveBeenCalledWith({ id: MESSAGES.VTT_GET_PERF, data: { windowS: 10 } }, extension);
     panelAnswered(answer);
     expect(await asked).toBe(answer);
 
     const unanswered = askPanel(10);
     await vi.advanceTimersByTimeAsync(PANEL_TIMEOUT_MS);
     expect(await unanswered).toBeNull();
+  });
+
+  it("answers every ask that waits, also when one was asked before another", async () => {
+    const answer: PanelPerfMessage = {
+      view: "tiles", rendersPerS: 1, fpsRendersPerS: 4, redrawMs: null,
+    };
+    const first = askPanel(10);
+    await vi.advanceTimersByTimeAsync(PANEL_TIMEOUT_MS / 2);
+    const second = askPanel(10);
+    await vi.advanceTimersByTimeAsync(PANEL_TIMEOUT_MS / 2);
+    // The first one's time is up: it is null, the second one still waits.
+    expect(await first).toBeNull();
+
+    panelAnswered(answer);
+
+    expect(await second).toBe(answer);
   });
 
   it("goes as one VTT_BATCH with the messages of a second, in order; a single message goes as it is", () => {
@@ -88,7 +109,7 @@ describe("the panel's answer", () => {
     postBatch(() => postToPopup(MESSAGES.VTT_SAMPLE, { t: 4 }));
     postBatch(() => undefined);
 
-    expect(frame.postMessage.mock.calls.map(([message]) => message)).toEqual([
+    expect(frame.postMessage.mock.calls.map(([message]) => message as unknown)).toEqual([
       {
         id: MESSAGES.VTT_BATCH,
         data: [
@@ -99,6 +120,14 @@ describe("the panel's answer", () => {
       },
       { id: MESSAGES.VTT_SAMPLE, data: { t: 4 } },
     ]);
+  });
+
+  it("goes nowhere before main.js adds the panel", () => {
+    panel = null;
+
+    postToPopup(MESSAGES.VTT_SAMPLE, { t: 1 });
+
+    expect(frame.postMessage).not.toHaveBeenCalled();
   });
 });
 
@@ -117,15 +146,16 @@ describe("perf counters of the panel", () => {
     expect(panelPerf(10, true, now)).toMatchObject({ view: null, rendersPerS: 0, redrawMs: null });
   });
 
-  it("answers VTT_GET_PERF of the page with VTT_PERF", () => {
+  it("answers VTT_GET_PERF of the page with VTT_PERF, addressed to the page's origin", () => {
     const parent = { postMessage: vi.fn() };
-    vi.stubGlobal("window", { parent });
+    vi.stubGlobal("window", { parent, location: { search: "?page=https%3A%2F%2Fmeet.example.com" } });
 
-    answerPerf({ data: { id: MESSAGES.VTT_GET_PERF, data: { windowS: 5 } } } as MessageEvent, false);
-    answerPerf({ data: { id: MESSAGES.VTT_SAMPLE, data: {} } } as MessageEvent, false);
+    answerPerf({ id: MESSAGES.VTT_GET_PERF, data: { windowS: 5 } }, false);
+    answerPerf({ id: MESSAGES.VTT_SAMPLE, data: {} }, false);
 
     expect(parent.postMessage).toHaveBeenCalledTimes(1);
     expect(parent.postMessage.mock.calls[0][0]).toMatchObject({ id: MESSAGES.VTT_PERF, data: { view: "timeline" } });
+    expect(parent.postMessage.mock.calls[0][1]).toBe("https://meet.example.com");
     vi.unstubAllGlobals();
   });
 });

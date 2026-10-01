@@ -1,12 +1,17 @@
+// Messages of the injection to the panel, the iframe that main.js adds to the page.
 import { MESSAGES, PanelMessage } from "../../../shared/protocol";
+import { findPanel } from "./senders";
 
 // Messages posted inside postBatch(), waiting to go as one VTT_BATCH.
 let batch: PanelMessage[] | null = null;
 
+// To the panel's window, addressed to the extension's origin; before main.js adds the panel there is no one to tell.
 const post = (message: unknown) => {
-  (window.frames as unknown as { vttFrame: Window }).vttFrame.postMessage(message, "*");
+  const panel = findPanel();
+  panel?.window.postMessage(message, panel.origin);
 };
 
+// Sends a message to the panel at once, or adds it to the batch being collected (postBatch).
 export const postToPopup = (eventId: string, data: unknown) => {
   if (batch) {
     batch.push({ id: eventId, data });

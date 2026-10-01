@@ -32,7 +32,7 @@ describe("stream values", () => {
 
     expect(v.w).toBe(960);
     expect(v.h).toBe(540);
-    const ms = (cur.timestamp as number) - (first.timestamp as number);
+    const ms = cur.timestamp - first.timestamp;
     expect(v.bitrate).toBeCloseTo((((cur.bytesReceived as number) - (first.bytesReceived as number)) * 8) / ms, 6);
     const lost = (cur.packetsLost as number) - (first.packetsLost as number);
     const received = (cur.packetsReceived as number) - (first.packetsReceived as number);

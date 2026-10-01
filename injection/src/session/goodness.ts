@@ -1,6 +1,6 @@
 // Fixed thresholds of PRD §7: good — green, moderate — yellow, bad — red.
 import { CANDIDATE_TYPES, PROTOCOLS, SampleValues, VIDEO_CODECS } from "shared/constants/sampleFields";
-import { Goodness, GoodnessMap } from "shared/protocol";
+import { Goodness, GoodnessKey, GoodnessMap } from "shared/protocol";
 import { ElementInfo } from "./extract";
 
 // Higher is better: ≥ good → good, ≥ moderate → moderate, lower → bad.
@@ -30,8 +30,10 @@ const BITRATE = [
   [Infinity, 2000, 1000],
 ];
 
+// The BITRATE row for a frame height; without a height, the lowest one.
 const bitrateRow = (height: number | null): number[] => BITRATE.find(([below]) => (height ?? 0) < below) as number[];
 
+// Bitrate, kbps, by the thresholds of the frame height's row.
 export const bitrateGoodness = (kbps: number, height: number | null): Goodness => {
   const [, good, moderate] = bitrateRow(height);
   return higher(kbps, good, moderate);
@@ -87,8 +89,10 @@ const QP: Record<string, [number, number]> = {
   AV1: [100, 160],
 };
 
+// A codec's [good up to, moderate up to]; undefined for a codec without QP thresholds (H265).
 export const qpThresholds = (codec: string): [number, number] | undefined => QP[codec];
 
+// QP by the codec's thresholds; undefined for a codec without them.
 export const qpGoodness = (qp: number, codec: string): Goodness | undefined => {
   const thresholds = qpThresholds(codec);
   if (!thresholds) {
@@ -107,55 +111,41 @@ export const concealmentGoodness = (pct: number): Goodness => lower(pct, 1, 5);
 // First frame from the stream's start, s: < 4, 4–8, > 8 — the limits of Slow start (PRD §13.3, §12.3).
 export const firstFrameGoodness = (s: number): Goodness => lower(s, 4, 8);
 
+// The size of the <video> on the page, for the Resolution tile.
+type ElementBox = Pick<ElementInfo, "clientWidth" | "clientHeight">;
+
+// The goodness of a value, undefined without it.
+const judge = (value: number | null, of: (value: number) => Goodness): Goodness | undefined =>
+  value === null ? undefined : of(value);
+
+// How each metric is judged from a sample (PRD §7), in the order of the tiles; undefined when the sample has no
+// value for it.
+const JUDGES: [GoodnessKey, (s: SampleValues, element?: ElementBox) => Goodness | undefined][] = [
+  ["fps", (s) => judge(s.v_fps_r, fpsGoodness)],
+  ["bitrate", (s) => judge(s.v_bitrate, (kbps) => bitrateGoodness(kbps, s.v_h))],
+  ["resolution", (s, element) =>
+    s.v_w === null || s.v_h === null || !element ? undefined : resolutionGoodness(s.v_w, s.v_h, element)],
+  ["loss", (s) => judge(s.v_loss, lossGoodness)],
+  ["videoDelay", (s) => judge(s.d_video, delayGoodness)],
+  ["audioDelay", (s) => judge(s.d_audio, delayGoodness)],
+  ["freezes", (s) => judge(s.v_freeze_pct, freezesGoodness)],
+  ["rtt", (s) => judge(s.rtt, rttGoodness)],
+  ["path", (s) => s.pair_type === null
+    ? undefined
+    : pathGoodness(CANDIDATE_TYPES[s.pair_type], s.pair_proto === null ? null : PROTOCOLS[s.pair_proto])],
+  ["avOffset", (s) => judge(s.av_offset, avOffsetGoodness)],
+  ["qp", (s) => s.v_qp === null || s.v_codec_id === null ? undefined : qpGoodness(s.v_qp, VIDEO_CODECS[s.v_codec_id])],
+  ["concealment", (s) => judge(s.a_concealed_pct, concealmentGoodness)],
+];
+
 // Goodness of every metric that has a value in the sample.
-export const sampleGoodness = (
-  s: SampleValues,
-  element?: Pick<ElementInfo, "clientWidth" | "clientHeight">
-): GoodnessMap => {
+export const sampleGoodness = (s: SampleValues, element?: ElementBox): GoodnessMap => {
   const g: GoodnessMap = {};
-
-  if (s.v_fps_r !== null) {
-    g.fps = fpsGoodness(s.v_fps_r);
-  }
-  if (s.v_bitrate !== null) {
-    g.bitrate = bitrateGoodness(s.v_bitrate, s.v_h);
-  }
-  if (s.v_w !== null && s.v_h !== null && element) {
-    g.resolution = resolutionGoodness(s.v_w, s.v_h, element);
-  }
-  if (s.v_loss !== null) {
-    g.loss = lossGoodness(s.v_loss);
-  }
-  if (s.d_video !== null) {
-    g.videoDelay = delayGoodness(s.d_video);
-  }
-  if (s.d_audio !== null) {
-    g.audioDelay = delayGoodness(s.d_audio);
-  }
-  if (s.v_freeze_pct !== null) {
-    g.freezes = freezesGoodness(s.v_freeze_pct);
-  }
-  if (s.rtt !== null) {
-    g.rtt = rttGoodness(s.rtt);
-  }
-  if (s.pair_type !== null) {
-    g.path = pathGoodness(
-      CANDIDATE_TYPES[s.pair_type],
-      s.pair_proto === null ? null : PROTOCOLS[s.pair_proto]
-    );
-  }
-  if (s.av_offset !== null) {
-    g.avOffset = avOffsetGoodness(s.av_offset);
-  }
-  if (s.v_qp !== null && s.v_codec_id !== null) {
-    const qp = qpGoodness(s.v_qp, VIDEO_CODECS[s.v_codec_id]);
-    if (qp) {
-      g.qp = qp;
+  JUDGES.forEach(([key, of]) => {
+    const goodness = of(s, element);
+    if (goodness) {
+      g[key] = goodness;
     }
-  }
-  if (s.a_concealed_pct !== null) {
-    g.concealment = concealmentGoodness(s.a_concealed_pct);
-  }
-
+  });
   return g;
 };

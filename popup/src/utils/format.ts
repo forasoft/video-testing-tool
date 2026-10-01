@@ -1,7 +1,6 @@
 // Value formats of PRD §7: thousands separated by a narrow space, decimal point.
 import { groupThousands } from "../../../shared/format";
 
-export { groupThousands };
 
 // 30.0 fps
 export const formatFps = (fps: number): string => `${fps.toFixed(1)} fps`;

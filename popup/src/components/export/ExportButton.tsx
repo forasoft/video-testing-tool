@@ -1,3 +1,4 @@
+// The plain export button of the Report and of the start screen's last session.
 import React from "react";
 import styles from "../expanded/ExportMenu.module.css";
 import { ExportFormat, useExport } from "../../utils/useExport";

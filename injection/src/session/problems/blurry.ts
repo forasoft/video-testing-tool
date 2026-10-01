@@ -18,14 +18,17 @@ const round = (value: number | null) => (value === null ? "—" : String(Math.ro
 // The lower middle value: an existing frame size, not the mean of two.
 const lowerMedian = (values: number[]) => (values.length ? [...values].sort((a, b) => a - b)[Math.floor((values.length - 1) / 2)] : null);
 
+// The codec name of a v_codec_id; null when unknown.
 const codecOf = (id: number | null | undefined): string | null => (id === null || id === undefined ? null : VIDEO_CODECS[id] ?? null);
 
+// Detects Blurry picture: QP in the codec's bad zone while the bitrate holds, START_SAMPLES samples in a row.
 export class Blurry implements Detector {
   readonly type = "blurry";
   // Times of the blurry samples in a row, and of the sharp ones in a row.
   private blurry: number[] = [];
   private sharp: number[] = [];
 
+  // Opens at the first of the blurry samples in a row, closes at the first of the sharp ones in a row.
   onSample(engine: ProblemEngine): void {
     const s = engine.sample;
     const codec = codecOf(s?.v_codec_id);
@@ -63,6 +66,7 @@ export class Blurry implements Detector {
     return bitrate !== null && (baseline === null || bitrate >= BITRATE_SHARE * baseline);
   }
 
+  // Medians over the problem; the QP row names the codec's bound above which QP is bad (§7).
   describe(problem: Problem, engine: ProblemEngine): Description {
     const { tStart, tEnd } = problem;
     // The samples of the problem: up to now, or up to its end (the first sharp sample).

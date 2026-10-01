@@ -1,3 +1,4 @@
+// The Report tab of Expanded: the whole session summed up, ready for a ticket.
 import React, { useContext } from "react";
 import styles from "./Report.module.css";
 import { mmss } from "../../../../shared/format";

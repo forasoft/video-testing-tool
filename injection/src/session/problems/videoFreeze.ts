@@ -9,25 +9,27 @@ import { Description, Detector, median, Problem, ProblemEngine } from "./engine"
 // severe from this long.
 export const SEVERE_S = 3;
 // page: a long task at least this long overlaps the freeze.
-export const PAGE_TASK_MS = 200;
+const PAGE_TASK_MS = 200;
 // network: in the 3 s before the freeze v_loss ≥ 2 % or v_bitrate < 50 % of its 30-s median,
 // or no packet at all came over the selected pair for ≥ 2 s during the freeze. A drop in the
 // network stops every packet (audio and RTCP too), a sender that stops sends the rest; loss of
 // a short drop is repaired by retransmission, so packetsLost does not grow.
-export const BEFORE_S = 3;
+const BEFORE_S = 3;
 export const LOSS_PCT = 2;
 export const DROP_SHARE = 0.5;
 export const MEDIAN_WINDOW_S = 30;
 // A median of fewer samples is not a baseline.
 export const MIN_HISTORY = 5;
-export const SILENCE_S = 2;
+// network: no packet over the selected pair for this long during the freeze, s.
+const SILENCE_S = 2;
 // decoder: frames kept arriving at ≥ half the usual rate and < 10 % of them were decoded;
 // element: frames kept being decoded at ≥ half the usual rate. Usual — median of the 10 s before.
-export const USUAL_WINDOW_S = 10;
-export const KEPT_SHARE = 0.5;
-export const DECODED_SHARE = 0.1;
+const USUAL_WINDOW_S = 10;
+const KEPT_SHARE = 0.5;
+const DECODED_SHARE = 0.1;
 
-export type FreezeCause = "page" | "network" | "decoder" | "element" | "unknown";
+// Where the frames stopped, checked in this order; unknown — none of the others fits.
+type FreezeCause = "page" | "network" | "decoder" | "element" | "unknown";
 
 // Freezes up to t, seconds from the session start (FrameClock.list).
 export type FreezeSource = (t: number) => ListedFreeze[];
@@ -40,7 +42,8 @@ export interface MediaState {
   lastPacketT: number | null;
 }
 
-export interface VideoFreezeData {
+// What the detector saw of the element, the decoder and the selected pair while the freeze went on.
+interface VideoFreezeData {
   // Seen while the freeze went on (right after it, if it began and ended between two samples).
   readyState: number | null;
   decoder: string | null;
@@ -48,6 +51,7 @@ export interface VideoFreezeData {
   silence: number;
 }
 
+// The category follows the cause: a decoder, an element or an unknown cause is put on this device.
 const CATEGORY: Record<FreezeCause, ProblemCategory> = {
   page: "Page",
   network: "Network",
@@ -61,6 +65,7 @@ const max = (values: number[]) => (values.length ? Math.max(...values) : null);
 const min = (values: number[]) => (values.length ? Math.min(...values) : null);
 const pct = (value: number | null) => (value === null ? "—" : `${value.toFixed(1)} %`);
 
+// A per-second frame counter (received or decoded) over a freeze.
 interface Frames {
   // Estimated frames during the freeze; null without data.
   count: number | null;
@@ -68,6 +73,7 @@ interface Frames {
   usual: number | null;
 }
 
+// Detects Video freeze: no frame shown for ≥ 1 s (FrameClock); the cause is judged from the samples around it.
 export class VideoFreeze implements Detector<VideoFreezeData> {
   readonly type = "video_freeze";
   private readonly freezes: FreezeSource;
@@ -83,6 +89,7 @@ export class VideoFreeze implements Detector<VideoFreezeData> {
     this.tasks = tasks;
   }
 
+  // Opens a problem for each new freeze, notes what is seen while it goes on, and closes it when the freeze ends.
   onSample(engine: ProblemEngine): void {
     this.freezes(engine.t)
       .filter((freeze) => freeze.start > this.handled)
@@ -99,6 +106,7 @@ export class VideoFreeze implements Detector<VideoFreezeData> {
       });
   }
 
+  // Notes the element's readyState, the decoder and the longest silence of the selected pair so far.
   private observe(problem: Problem<VideoFreezeData>, engine: ProblemEngine): void {
     const { readyState, decoder, lastPacketT } = this.media();
     const { data } = problem;
@@ -126,6 +134,7 @@ export class VideoFreeze implements Detector<VideoFreezeData> {
     return { count: Math.max(0, total), usual };
   }
 
+  // In the 3 s before the freeze: loss ≥ 2 % or the bitrate under half of its 30-s median.
   private networkBefore(problem: Problem<VideoFreezeData>, engine: ProblemEngine): boolean {
     const { tStart } = problem;
     const loss = max(engine.valuesBefore("v_loss", tStart, BEFORE_S));
@@ -147,6 +156,7 @@ export class VideoFreeze implements Detector<VideoFreezeData> {
     return tasks.reduce<LongTask | null>((longest, task) => (!longest || task.duration > longest.duration ? task : longest), null);
   }
 
+  // The first cause that fits: page, network, decoder, element; else unknown.
   private cause(problem: Problem<VideoFreezeData>, engine: ProblemEngine, received: Frames, decoded: Frames, task?: LongTask | null): FreezeCause {
     if (task && task.duration >= PAGE_TASK_MS) {
       return "page";
@@ -165,6 +175,7 @@ export class VideoFreeze implements Detector<VideoFreezeData> {
     return "unknown";
   }
 
+  // Severe from SEVERE_S; the category, the likely cause and the check follow the cause.
   describe(problem: Problem<VideoFreezeData>, engine: ProblemEngine): Description {
     const { tStart, data } = problem;
     const end = problem.tEnd ?? engine.t;

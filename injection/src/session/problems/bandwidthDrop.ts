@@ -13,14 +13,15 @@ export const MIN_HISTORY = 5;
 export const DROP_SHARE = 0.5;
 export const START_SAMPLES = 2;
 export const LOSS_PCT = 2;
-export const PLI_WINDOW_S = 5;
-export const PLI_COUNT = 2;
+const PLI_WINDOW_S = 5;
+const PLI_COUNT = 2;
 // End: bitrate ≥ 80 % of the median before the start, 5 samples in a row; a layer switched up; 120 s.
-export const RECOVERED_SHARE = 0.8;
+const RECOVERED_SHARE = 0.8;
 export const END_SAMPLES = 5;
 export const MAX_S = 120;
 
-export interface BandwidthDropData {
+// The baselines a drop is judged against, taken at its start.
+interface BandwidthDropData {
   // Medians over the 30 s before the start: kbps, ms, kbps.
   before: number;
   rttBefore: number | null;
@@ -33,11 +34,18 @@ const max = (values: number[]) => (values.length ? Math.max(...values) : null);
 const min = (values: number[]) => (values.length ? Math.min(...values) : null);
 const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
 
+// A layer_change to a lower / a higher frame height.
 const isDown = (e: SessionEvent) => e.to !== undefined && e.from !== undefined && e.to < e.from;
 const isUp = (e: SessionEvent) => e.to !== undefined && e.from !== undefined && e.to > e.from;
 
 // The layer the drop went down to: the height before the first switch down → the lowest one.
-const layerDrop = (events: SessionEvent[]): { from: number; to: number } | null => {
+interface LayerDrop {
+  from: number;
+  to: number;
+}
+
+// From the layer_change events of the drop; null when none switched down.
+const layerDrop = (events: SessionEvent[]): LayerDrop | null => {
   const downs = events.filter(isDown);
   if (!downs.length) {
     return null;
@@ -45,12 +53,36 @@ const layerDrop = (events: SessionEvent[]): { from: number; to: number } | null 
   return { from: downs[0].from as number, to: Math.min(...downs.map((e) => e.to as number)) };
 };
 
+// Packet loss with one decimal, as in the card of §12.2.
+const lossText = (pct: number) => `${pct.toFixed(1)} %`;
+
+// Video freezes shown during the drop; a freeze shorter than 1 s is no problem and has no number (id 0).
+const freezesDuring = (problem: Problem, engine: ProblemEngine, end: number): number =>
+  engine.problems.filter((p) => p.type === "video_freeze" && p.id > 0
+    && p.tStart <= end && (p.tEnd ?? engine.t) >= problem.tStart).length;
+
+// ", 2 freezes" for the one-liner, nothing without them.
+const freezesPart = (count: number): string => {
+  if (!count) {
+    return "";
+  }
+  return `, ${count} ${count === 1 ? "freeze" : "freezes"}`;
+};
+
+// Likely cause: the channel estimate when it fell, the packet loss otherwise.
+const dropCause = (availBefore: number | null, lowestAvail: number | null, maxLoss: number | null): string =>
+  availBefore !== null && lowestAvail !== null && lowestAvail < availBefore
+    ? `channel estimate fell ${mbps(availBefore)} → ${mbps(lowestAvail)} Mbit/s`
+    : `packet loss spiked to ${maxLoss === null ? "—" : lossText(maxLoss)}`;
+
+// Detects Bandwidth drop: bitrate under half of its 30-s median 2 samples in a row while the network shows trouble.
 export class BandwidthDrop implements Detector<BandwidthDropData> {
   readonly type = "bandwidth_drop";
   // Times of the low-bitrate samples in a row, and of the recovered ones in a row.
   private low: number[] = [];
   private recovered: number[] = [];
 
+  // Looks for a start while no drop goes on, else for its end.
   onSample(engine: ProblemEngine): void {
     const open = engine.current<BandwidthDropData>(this.type);
     if (open) {
@@ -60,6 +92,7 @@ export class BandwidthDrop implements Detector<BandwidthDropData> {
     }
   }
 
+  // Opens a drop at the first of the low samples in a row once there are START_SAMPLES and the network shows trouble.
   private watchStart(engine: ProblemEngine): void {
     const { t } = engine;
     const bitrate = engine.sample?.v_bitrate ?? null;
@@ -83,6 +116,7 @@ export class BandwidthDrop implements Detector<BandwidthDropData> {
     this.recovered = [];
   }
 
+  // This sample's loss ≥ 2 %, ≥ 2 PLI in the last 5 s, or the channel estimate under half of its 30-s median.
   private networkTrouble(engine: ProblemEngine): boolean {
     const s = engine.sample;
     if (s?.v_loss != null && s.v_loss >= LOSS_PCT) {
@@ -95,6 +129,7 @@ export class BandwidthDrop implements Detector<BandwidthDropData> {
     return s?.avail_in != null && availBaseline !== null && s.avail_in < DROP_SHARE * availBaseline;
   }
 
+  // Ends at a layer switched up, after MAX_S, or at the first of END_SAMPLES recovered samples in a row.
   private watchEnd(open: Problem<BandwidthDropData>, engine: ProblemEngine): void {
     const { t } = engine;
     const up = engine.events.between("layer_change", open.tStart, t).find((e) => e.t > open.tStart && isUp(e));
@@ -132,47 +167,27 @@ export class BandwidthDrop implements Detector<BandwidthDropData> {
     return back ? Math.max(0, back.t - problem.tEnd) : null;
   }
 
+  // The card is final when no layer was switched down, or once the one it dropped from is back (the Recovery row).
   settled(problem: Problem<BandwidthDropData>, engine: ProblemEngine): boolean {
     const layer = layerDrop(engine.events.between("layer_change", problem.tStart, problem.tEnd ?? engine.t));
     return !layer || this.recovery(problem, engine, layer.from) !== null;
   }
 
+  // Severe when the video froze or a lower layer was switched to during the drop.
   describe(problem: Problem<BandwidthDropData>, engine: ProblemEngine): Description {
-    const { before, rttBefore, availBefore } = problem.data;
     const end = problem.tEnd ?? engine.t;
+    const { before, availBefore } = problem.data;
     const lowest = min(engine.values("v_bitrate", problem.tStart, end)) ?? before;
     const maxLoss = max(engine.values("v_loss", problem.tStart, end));
-    const maxRtt = max(engine.values("rtt", problem.tStart, end));
     const lowestAvail = min(engine.values("avail_in", problem.tStart, end));
     const layer = layerDrop(engine.events.between("layer_change", problem.tStart, end));
-    const freezes = engine.problems.filter((p) => p.type === "video_freeze" && p.id > 0
-      && p.tStart <= end && (p.tEnd ?? engine.t) >= problem.tStart).length;
-
+    const freezes = freezesDuring(problem, engine, end);
     const bitrate = `${kbps(before)} → ${kbps(lowest)} kbps`;
-    const loss = maxLoss === null ? "—" : `${maxLoss.toFixed(1)} %`;
-    const freezePart = freezes ? `, ${freezes} ${freezes === 1 ? "freeze" : "freezes"}` : "";
-    const layerPart = layer ? `, layer ${layer.from}p → ${layer.to}p` : "";
-
-    const rows: [string, string][] = [
-      ["Bitrate", bitrate],
-      ["Packet loss", maxLoss === null ? "—" : `max ${loss}`],
-      ["NACK / PLI", `${sum(engine.values("v_nack", problem.tStart, end))} / ${sum(engine.values("v_pli", problem.tStart, end))}`],
-      ["RTT", rttBefore === null || maxRtt === null ? "—" : `${Math.round(rttBefore)} → ${Math.round(maxRtt)} ms`],
-      ["Layer", layer ? `${layer.from}p → ${layer.to}p` : "unchanged"],
-    ];
-    if (layer) {
-      const seconds = this.recovery(problem, engine, layer.from);
-      rows.push(["Recovery", seconds === null ? "not yet" : `${Math.round(seconds)} s to ${layer.from}p`]);
-    }
-
-    const cause = availBefore !== null && lowestAvail !== null && lowestAvail < availBefore
-      ? `channel estimate fell ${mbps(availBefore)} → ${mbps(lowestAvail)} Mbit/s`
-      : `packet loss spiked to ${loss}`;
 
     const card: Description["card"] = {
       series: engine.cardSeries("v_bitrate", problem),
-      rows,
-      likelyCause: `Network between you and the sender: ${cause}.`,
+      rows: this.rows(problem, engine, { end, bitrate, maxLoss, layer }),
+      likelyCause: `Network between you and the sender: ${dropCause(availBefore, lowestAvail, maxLoss)}.`,
       check: "Wi-Fi/VPN on this machine. If it happens to everyone at once — SFU or the sender's uplink.",
     };
     const avail = engine.cardSeries("avail_in", problem);
@@ -184,8 +199,32 @@ export class BandwidthDrop implements Detector<BandwidthDropData> {
       title: "Bandwidth drop",
       category: "Network",
       severity: freezes || layer ? "severe" : "warn",
-      oneLine: `bitrate ${bitrate}${freezePart}${layerPart}`,
+      oneLine: `bitrate ${bitrate}${freezesPart(freezes)}${layer ? `, layer ${layer.from}p → ${layer.to}p` : ""}`,
       card,
     };
+  }
+
+  // The card's rows (PRD §12.4): bitrate before → lowest, losses, NACK / PLI, RTT, layer and its recovery.
+  private rows(
+    problem: Problem<BandwidthDropData>,
+    engine: ProblemEngine,
+    { end, bitrate, maxLoss, layer }: { end: number; bitrate: string; maxLoss: number | null; layer: LayerDrop | null },
+  ): [string, string][] {
+    const { rttBefore } = problem.data;
+    const maxRtt = max(engine.values("rtt", problem.tStart, end));
+    const nack = sum(engine.values("v_nack", problem.tStart, end));
+    const pli = sum(engine.values("v_pli", problem.tStart, end));
+    const rows: [string, string][] = [
+      ["Bitrate", bitrate],
+      ["Packet loss", maxLoss === null ? "—" : `max ${lossText(maxLoss)}`],
+      ["NACK / PLI", `${nack} / ${pli}`],
+      ["RTT", rttBefore === null || maxRtt === null ? "—" : `${Math.round(rttBefore)} → ${Math.round(maxRtt)} ms`],
+      ["Layer", layer ? `${layer.from}p → ${layer.to}p` : "unchanged"],
+    ];
+    if (layer) {
+      const seconds = this.recovery(problem, engine, layer.from);
+      rows.push(["Recovery", seconds === null ? "not yet" : `${Math.round(seconds)} s to ${layer.from}p`]);
+    }
+    return rows;
   }
 }

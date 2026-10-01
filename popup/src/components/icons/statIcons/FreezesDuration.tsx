@@ -1,3 +1,4 @@
+// Icon of the Freezes & Stalls tile.
 import React from "react";
 
 export const FreezesDurationIcon = () => (

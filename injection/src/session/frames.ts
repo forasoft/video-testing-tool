@@ -8,6 +8,7 @@
 import { SuspendReason } from "shared/protocol";
 import { perf } from "./perf";
 
+// Frame rate is the number of frames presented in the last this many ms.
 export const FPS_WINDOW_MS = 1000;
 // After the tab becomes visible or the video plays again, frames settle for this long (PRD §14.4).
 export const RESUME_GUARD_MS = 200;
@@ -16,7 +17,8 @@ const INTERVAL_HISTORY = 30;
 // No freeze detection until the mean is known.
 const MIN_INTERVALS = 5;
 
-export interface FreezeInterval {
+// A stretch of the session: a freeze, or a time frames were not counted.
+interface FreezeInterval {
   start: number;
   end: number;
 }
@@ -26,19 +28,28 @@ export interface ListedFreeze extends FreezeInterval {
   open: boolean;
 }
 
+// Counts the rendered frames from rVFC callbacks: frame rate and latency of the last second, freezes, and the times
+// frames were not counted.
 export class FrameClock {
+  // The first frame and the last callback, and the last callback's presentedFrames.
   firstFrame: number | null = null;
   last: number | null = null;
   lastPresented: number | null = null;
+  // The callbacks of the last FPS window: time, frames presented, latency.
   recent: { t: number; frames: number; latency: number | null }[] = [];
+  // The last INTERVAL_HISTORY frame intervals that were not freezes.
   intervals: number[] = [];
+  // Freezes that ended, also one cut short when frames stopped being counted.
   closed: FreezeInterval[] = [];
+  // Why frames are not counted now; hidden and paused can hold at once.
   reasons = new Set<SuspendReason>();
+  // An interval from a frame before this time is not counted: frames settle after a resume.
   guardUntil = -Infinity;
   // Times frames were not counted (tab hidden, video paused), and the start of the current one.
   suspended: FreezeInterval[] = [];
   suspendedSince: number | null = null;
 
+  // Mean of the kept frame intervals; null while fewer than MIN_INTERVALS are kept.
   mean(): number | null {
     if (this.intervals.length < MIN_INTERVALS) {
       return null;
@@ -60,9 +71,7 @@ export class FrameClock {
 
   // `presented` — rVFC metadata.presentedFrames of this callback.
   frame(t: number, latency: number | null = null, presented: number | null = null): void {
-    if (this.firstFrame === null) {
-      this.firstFrame = t;
-    }
+    this.firstFrame ??= t;
     const counts = this.last !== null && this.counts();
     // Frames presented since the previous callback; 1 without the counter or after a pause.
     const frames = counts && presented !== null && this.lastPresented !== null && presented > this.lastPresented
@@ -83,6 +92,8 @@ export class FrameClock {
         }
         this.intervals.splice(0, Math.max(0, this.intervals.length - INTERVAL_HISTORY));
       }
+    } else {
+      this.closeStallAfterGuard(t);
     }
     this.last = t;
     this.lastPresented = presented;
@@ -90,6 +101,7 @@ export class FrameClock {
     this.prune(t);
   }
 
+  // Frames stop being counted for `reason`; the first reason starts a suspension.
   suspend(reason: SuspendReason, t: number): void {
     if (this.reasons.size === 0) {
       // A freeze that was already going on before the tab was hidden still counts.
@@ -102,6 +114,7 @@ export class FrameClock {
     this.reasons.add(reason);
   }
 
+  // The last reason gone ends the suspension; intervals count again from a frame at least RESUME_GUARD_MS after it.
   resume(reason: SuspendReason, t: number): void {
     if (this.reasons.delete(reason) && this.reasons.size === 0) {
       this.guardUntil = t + RESUME_GUARD_MS;
@@ -136,14 +149,36 @@ export class FrameClock {
     return Math.min(1, ms / (to - from));
   }
 
-  ongoing(t: number): FreezeInterval | null {
-    const threshold = this.threshold();
-    if (!this.counts() || threshold === null || this.last === null || t - this.last <= threshold) {
+  // Where the time without frames is counted from: the last frame or, when none has come since a resume, the end
+  // of its guard — a stream that stays stalled after the tab returns is a freeze from then on. null while suspended.
+  private countedFrom(): number | null {
+    if (this.reasons.size > 0 || this.last === null) {
       return null;
     }
-    return { start: this.last, end: t };
+    return Math.max(this.last, this.guardUntil);
   }
 
+  // A frame after a resume while frames settle: its interval says nothing of the pace, but a stall that went on
+  // past the guard ends with it and is a freeze from the guard's end.
+  private closeStallAfterGuard(t: number): void {
+    const from = this.countedFrom();
+    const threshold = this.threshold();
+    if (from !== null && threshold !== null && t - from > threshold) {
+      this.closed.push({ start: from, end: t });
+    }
+  }
+
+  // The freeze going on at t: no frame for longer than the threshold while frames are counted; else null.
+  ongoing(t: number): FreezeInterval | null {
+    const from = this.countedFrom();
+    const threshold = this.threshold();
+    if (from === null || threshold === null || t - from <= threshold) {
+      return null;
+    }
+    return { start: from, end: t };
+  }
+
+  // The ended freezes and the one going on at t, if any.
   freezes(t: number): FreezeInterval[] {
     const ongoing = this.ongoing(t);
     return ongoing ? [...this.closed, ongoing] : this.closed;
@@ -156,6 +191,7 @@ export class FrameClock {
     return ongoing ? [...closed, { ...ongoing, open: true }] : closed;
   }
 
+  // Total length of the freezes up to t, the one going on included.
   freezeMs(t: number): number {
     return this.freezes(t).reduce((sum, f) => sum + f.end - f.start, 0);
   }
@@ -175,6 +211,7 @@ export class FrameClock {
     return values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : null;
   }
 
+  // Drops the callbacks that fall out of the FPS window ending at t.
   prune(t: number): void {
     while (this.recent.length && this.recent[0].t <= t - FPS_WINDOW_MS) {
       this.recent.shift();

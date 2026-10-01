@@ -23,6 +23,7 @@ export interface RunSummary {
   p50BitrateKbps: number | null;
 }
 
+// Verdict levels from the best to the worst: they rank a change of level and check a stored summary.
 const LEVELS: VerdictLevel[] = ["OK", "Degraded", "Severe"];
 
 const tenths = (v: number) => Math.round(v * 10) / 10;
@@ -40,16 +41,21 @@ export const runSummary = (startedAt: number, durationS: number, verdict: Verdic
   p50BitrateKbps: whole(stats.distribution.v_bitrate.p50),
 });
 
-const isNumberOrNull = (value: unknown) => value === null || (typeof value === "number" && Number.isFinite(value));
+const isNumber = (value: unknown) => typeof value === "number" && Number.isFinite(value);
+const isNumberOrNull = (value: unknown) => value === null || isNumber(value);
 
 // A stored summary, or null when it is not one (nothing stored, another version, a page's own event).
 export const parseRun = (detail: unknown): RunSummary | null => {
   try {
-    const run = typeof detail === "string" ? JSON.parse(detail) : null;
-    const valid = run && typeof run === "object" && typeof run.startedAt === "string" && LEVELS.includes(run.verdict)
-      && [run.durationS, run.degradedS, run.freezes].every((v) => typeof v === "number" && Number.isFinite(v))
+    const parsed: unknown = typeof detail === "string" ? JSON.parse(detail) : null;
+    if (typeof parsed !== "object" || parsed === null) {
+      return null;
+    }
+    const run = parsed as Record<keyof RunSummary, unknown>;
+    const valid = typeof run.startedAt === "string" && LEVELS.includes(run.verdict as VerdictLevel)
+      && [run.durationS, run.degradedS, run.freezes].every(isNumber)
       && [run.p95DelayMs, run.p95LossPct, run.p50BitrateKbps].every(isNumberOrNull);
-    return valid ? run as RunSummary : null;
+    return valid ? (parsed as RunSummary) : null;
   } catch {
     return null;
   }
@@ -95,7 +101,9 @@ export const previousRunLine = (previous: RunSummary, current: RunSummary): Prev
 // What this page knows of the previous run: what storage answered, or what the page saved since — that one is newer.
 export class LastRuns {
   latest: RunSummary | null = null;
+  // This page saved a run: it is newer than any answer of main.js, which no longer changes `latest`.
   savedHere = false;
+  // Sessions waiting for main.js's answer.
   private waiting: ((run: RunSummary | null) => void)[] = [];
   private readonly store: (run: RunSummary) => void;
 
@@ -119,6 +127,7 @@ export class LastRuns {
     this.waiting.splice(0).forEach((update) => update(this.latest));
   }
 
+  // A run of this page becomes the latest and is stored; waiting sessions are not told: it may be their own run.
   save(run: RunSummary): void {
     this.latest = run;
     this.savedHere = true;
@@ -127,6 +136,7 @@ export class LastRuns {
   }
 }
 
+// The page's one LastRuns: a saved run goes to main.js as VTT_STORE_LAST_RUN.
 export const lastRuns = new LastRuns((run) => {
   window.dispatchEvent(new CustomEvent(EVENTS.VTT_STORE_LAST_RUN, { detail: JSON.stringify(run) }));
 });

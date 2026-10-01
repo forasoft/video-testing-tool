@@ -2,7 +2,7 @@
 import { SampleValues } from "../../../../../shared/constants/sampleFields";
 
 // [start, end], seconds from the session start.
-export type Range = [number, number];
+type Range = [number, number];
 
 // Runs of samples with `hidden` > 0. `hidden` is the share of the sample's second (t − 1…t) when
 // frames were not counted, so a run starts that much before its first sample and ends that much
@@ -35,7 +35,7 @@ export const hiddenRuns = (rows: SampleValues[]): Range[] => {
 export const mergeRanges = (ranges: Range[]): Range[] => [...ranges]
   .sort((a, b) => a[0] - b[0])
   .reduce<Range[]>((out, [start, end]) => {
-    const last = out[out.length - 1];
+    const last = out.length > 0 ? out[out.length - 1] : undefined;
     if (last && start <= last[1]) {
       last[1] = Math.max(last[1], end);
     } else {

@@ -2,9 +2,11 @@
 // share one circle with `+N`.
 import { EventMessage, EventTone } from "../../../../../shared/protocol";
 
-export const EVENT_GAP_PX = 16;
+// The default gap: a circle is 14 px wide, so closer ones would touch or overlap.
+const EVENT_GAP_PX = 16;
 
-export interface EventGroup {
+// The events of one circle, in time order.
+interface EventGroup {
   // Of the group's first event, px.
   x: number;
   events: EventMessage[];
@@ -15,7 +17,7 @@ export const groupEvents = (events: EventMessage[], x: (t: number) => number, ga
   .sort((a, b) => a.t - b.t || a.n - b.n)
   .reduce<EventGroup[]>((groups, event) => {
     const at = x(event.t);
-    const last = groups[groups.length - 1];
+    const last = groups.length > 0 ? groups[groups.length - 1] : undefined;
     if (last && at - last.x < gap) {
       last.events.push(event);
     } else {
