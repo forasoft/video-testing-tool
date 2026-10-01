@@ -119,6 +119,12 @@ The extension makes no network requests of its own: no server, no analytics, no 
 
 `store/` holds what the store's dashboard asks for: the package ZIP, the icon, the screenshots, the promo tile, the texts of the listing and of the privacy tab, and the privacy policy — see [store/README.md](store/README.md). After `npm run build`, `npm run store:assets` makes the ZIP and the images again.
 
+## Made by Fora Soft
+
+StreamTest is built by [Fora Soft](https://www.forasoft.com/) — a team that has been making video streaming, WebRTC and real-time AI video software since 2005, with 250+ products shipped. Need a video product built or a WebRTC problem solved? Visit [forasoft.com](https://www.forasoft.com/) or write to info@forasoft.com.
+
+**Want to understand how video really works — how it is encoded, delivered and tested?** Read [The Fora Soft Video Engineering Handbook](https://www.amazon.com/dp/B0HF4R78DN?binding=paperback), a series of seven books that grew out of the training we use to turn strong programmers into video engineers. On Amazon in paperback and for Kindle.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
